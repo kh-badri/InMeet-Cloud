@@ -84,11 +84,21 @@ export const App: React.FC = () => {
       />
 
       <div className="flex flex-1 relative">
-        {/* Responsive & Collapsible Sidebar (Never Auto-Hides) */}
+        {/* Mobile Backdrop Overlay when Sidebar is open */}
+        {isSidebarOpen && (
+          <div 
+            onClick={toggleSidebar}
+            className="fixed inset-0 top-16 bg-black/50 z-20 md:hidden animate-fade-in"
+            aria-hidden="true"
+          />
+        )}
+
+        {/* Responsive & Sticky Sidebar (Never Auto-Hides) */}
         <Sidebar 
           activeTab={activeTab} 
           onTabChange={handleTabChange} 
           isOpen={isSidebarOpen}
+          onClose={toggleSidebar}
         />
 
         {/* Main Content Area with Silky-Smooth Page Reveal Animation */}
