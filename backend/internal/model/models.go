@@ -196,6 +196,8 @@ type DriveItem struct {
 	SizeBytes   int64         `json:"size_bytes"`
 	MimeType    string        `json:"mime_type"`
 	StoragePath string        `json:"-"`
+	IsTrashed   bool          `json:"is_trashed"`
+	TrashedAt   *time.Time    `json:"trashed_at,omitempty"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
 	ItemCount   *int          `json:"item_count,omitempty"`

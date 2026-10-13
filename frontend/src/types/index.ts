@@ -102,6 +102,8 @@ export interface DriveItem {
   type: DriveItemType;
   size_bytes: number;
   mime_type: string;
+  is_trashed?: boolean;
+  trashed_at?: string | null;
   created_at: string;
   updated_at: string;
   item_count?: number;

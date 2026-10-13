@@ -212,14 +212,29 @@ func (s *DriveService) GetItem(ctx context.Context, userID uuid.UUID, id uuid.UU
 	return s.repo.GetByID(ctx, id, userID)
 }
 
+// DeleteItem moves item to trash quarantine (keeps files on disk for 7 days)
 func (s *DriveService) DeleteItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
+	return s.repo.MoveToTrash(ctx, id, userID)
+}
+
+// ListTrash returns all items in trash quarantine for the user
+func (s *DriveService) ListTrash(ctx context.Context, userID uuid.UUID) ([]*model.DriveItem, error) {
+	return s.repo.ListTrash(ctx, userID)
+}
+
+// RestoreItem restores a trashed item and its descendants back to active drive
+func (s *DriveService) RestoreItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
+	return s.repo.RestoreFromTrash(ctx, id, userID)
+}
+
+// PermanentDeleteItem permanently removes item and its files from disk and database
+func (s *DriveService) PermanentDeleteItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
 	item, err := s.repo.GetByID(ctx, id, userID)
 	if err != nil {
 		return err
 	}
 
 	if item.Type == model.DriveItemTypeFolder {
-		// Get all descendants to remove files from storage
 		descendants, err := s.repo.FindDescendants(ctx, userID, id)
 		if err == nil {
 			for _, desc := range descendants {
@@ -232,7 +247,34 @@ func (s *DriveService) DeleteItem(ctx context.Context, userID uuid.UUID, id uuid
 		_ = os.Remove(item.StoragePath)
 	}
 
-	return s.repo.Delete(ctx, id, userID)
+	return s.repo.DeletePermanent(ctx, id, userID)
+}
+
+// EmptyTrash permanently removes all trashed items for user
+func (s *DriveService) EmptyTrash(ctx context.Context, userID uuid.UUID) error {
+	trashed, err := s.repo.ListTrash(ctx, userID)
+	if err == nil {
+		for _, item := range trashed {
+			if item.Type == model.DriveItemTypeFile && item.StoragePath != "" {
+				_ = os.Remove(item.StoragePath)
+			}
+		}
+	}
+	return s.repo.EmptyTrash(ctx, userID)
+}
+
+// PurgeExpiredTrash is called by daily cron to permanently purge files trashed > 7 days ago
+func (s *DriveService) PurgeExpiredTrash(ctx context.Context, olderThan time.Time) error {
+	expired, err := s.repo.GetExpiredTrashItems(ctx, olderThan)
+	if err == nil {
+		for _, item := range expired {
+			if item.Type == model.DriveItemTypeFile && item.StoragePath != "" {
+				_ = os.Remove(item.StoragePath)
+			}
+		}
+	}
+	_, err = s.repo.PurgeExpiredTrash(ctx, olderThan)
+	return err
 }
 
 func (s *DriveService) RenameItem(ctx context.Context, userID uuid.UUID, id uuid.UUID, newName string) error {

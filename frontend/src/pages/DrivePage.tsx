@@ -9,7 +9,8 @@ import {
   FileCode, Image as ImageIcon, Film, Music, Search,
   Grid, List, Trash2, Download, Edit3, ChevronRight,
   ArrowLeft, Home, RefreshCw, Eye, HardDrive,
-  FolderArchive, Check, AlertCircle, FolderSymlink, MoveRight
+  FolderArchive, Check, AlertCircle, FolderSymlink, MoveRight,
+  RotateCcw, Clock, AlertTriangle
 } from 'lucide-react';
 
 interface HierarchicalFolder {
@@ -61,6 +62,7 @@ export const DrivePage: React.FC = () => {
   const { startUpload } = useDriveUpload();
 
   // Navigation State
+  const [activeTab, setActiveTab] = useState<'drive' | 'trash'>('drive');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,6 +74,8 @@ export const DrivePage: React.FC = () => {
   const [renameTarget, setRenameTarget] = useState<DriveItem | null>(null);
   const [newName, setNewName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DriveItem | null>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<DriveItem | null>(null);
+  const [isEmptyTrashOpen, setIsEmptyTrashOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<DriveItem | null>(null);
   const [moveTarget, setMoveTarget] = useState<DriveItem | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
@@ -159,7 +163,7 @@ export const DrivePage: React.FC = () => {
     },
   });
 
-  // Delete Item Mutation
+  // Delete Item Mutation (Moves to Kotak Sampah / 7-Day Quarantine)
   const deleteMutation = useMutation({
     mutationFn: (id: string) => {
       return apiRequest(`/api/v1/drive/items/${id}`, {
@@ -168,11 +172,78 @@ export const DrivePage: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-trash'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-summary'] });
       setDeleteTarget(null);
-      setActionSuccess('Item berhasil dihapus');
+      setActionSuccess('Item berhasil dipindahkan ke Kotak Sampah (Karantina 7 hari)');
     },
     onError: (err: any) => {
-      setActionError(err.message || 'Gagal menghapus item');
+      setActionError(err.message || 'Gagal memindahkan item ke sampah');
+    },
+  });
+
+  // Fetch Trash items
+  const {
+    data: trashData,
+    isLoading: isTrashLoading,
+    isFetching: isTrashFetching,
+    refetch: refetchTrash,
+  } = useQuery<{ items: DriveItem[] }>({
+    queryKey: ['drive-trash'],
+    queryFn: () => apiRequest<{ items: DriveItem[] }>('/api/v1/drive/trash'),
+  });
+
+  // Restore Trash Item Mutation
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => {
+      return apiRequest(`/api/v1/drive/trash/${id}/restore`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-trash'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-summary'] });
+      setActionSuccess('Item berhasil dipulihkan ke Drive Saya!');
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal memulihkan item');
+    },
+  });
+
+  // Permanent Delete Mutation
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: string) => {
+      return apiRequest(`/api/v1/drive/trash/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-trash'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-summary'] });
+      setPermanentDeleteTarget(null);
+      setActionSuccess('Item berhasil dihapus secara permanen!');
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal menghapus item permanen');
+    },
+  });
+
+  // Empty Trash Mutation
+  const emptyTrashMutation = useMutation({
+    mutationFn: () => {
+      return apiRequest('/api/v1/drive/trash', {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-trash'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-summary'] });
+      setIsEmptyTrashOpen(false);
+      setActionSuccess('Seluruh isi kotak sampah berhasil dikosongkan!');
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal mengosongkan kotak sampah');
     },
   });
 
@@ -220,6 +291,7 @@ export const DrivePage: React.FC = () => {
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    if (activeTab === 'trash') return;
     setIsDragOver(true);
   };
 
@@ -231,6 +303,7 @@ export const DrivePage: React.FC = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    if (activeTab === 'trash') return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleUploadFiles(e.dataTransfer.files);
     }
@@ -288,8 +361,22 @@ export const DrivePage: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const getRemainingQuarantineDays = (trashedAt?: string | null) => {
+    if (!trashedAt) return 7;
+    const trashedTime = new Date(trashedAt).getTime();
+    const now = Date.now();
+    const diffMs = now - trashedTime;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const remaining = 7 - diffDays;
+    return remaining > 0 ? remaining : 0;
+  };
+
   const folders = data?.items.filter((i) => i.type === 'folder') || [];
   const files = data?.items.filter((i) => i.type === 'file') || [];
+  const trashItems = trashData?.items || [];
+  const filteredTrashItems = trashItems.filter((item) =>
+    !debouncedSearch || item.name.toLowerCase().includes(debouncedSearch.toLowerCase())
+  );
 
   return (
     <div
@@ -350,111 +437,202 @@ export const DrivePage: React.FC = () => {
           {/* Title & Stats */}
           <div className="flex items-start sm:items-center gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white">
-              <HardDrive className="h-6 w-6 text-white" />
+              {activeTab === 'trash' ? (
+                <Trash2 className="h-6 w-6 text-white" />
+              ) : (
+                <HardDrive className="h-6 w-6 text-white" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  InMeet Drive
+                  {activeTab === 'trash' ? 'Kotak Sampah Drive' : 'InMeet Drive'}
                 </h1>
                 <span className="rounded-md border border-[#92B4EC]/50 bg-[#92B4EC]/20 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-[#FEA82F]">
-                  PERSONAL STORAGE
+                  {activeTab === 'trash' ? 'KARANTINA 7 HARI' : 'PERSONAL STORAGE'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {data ? `${data.total_items} item tersimpan (${formatBytes(data.total_bytes)})` : 'Memuat data...'}
+                {activeTab === 'trash'
+                  ? trashData
+                    ? `${trashData.items.length} item dalam karantina (${formatBytes(
+                        trashData.items.reduce((acc, i) => acc + (i.size_bytes || 0), 0)
+                      )})`
+                    : 'Memuat data sampah...'
+                  : data
+                  ? `${data.total_items} item tersimpan (${formatBytes(data.total_bytes)})`
+                  : 'Memuat data...'}
               </p>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setIsNewFolderOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62]/40 transition-colors"
-            >
-              <FolderPlus className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
-              <span>+ Folder Baru</span>
-            </button>
+          {/* Tab Switcher & Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* View Mode Toggle: Drive vs Trash */}
+            <div className="flex items-center rounded-xl border border-[#92B4EC] p-0.5 bg-slate-50 dark:border-[#1E3E62] dark:bg-[#000000]">
+              <button
+                onClick={() => {
+                  setActiveTab('drive');
+                  setSearchQuery('');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  activeTab === 'drive'
+                    ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                }`}
+              >
+                <HardDrive className="h-3.5 w-3.5" />
+                <span>Drive Saya</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('trash');
+                  setSearchQuery('');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  activeTab === 'trash'
+                    ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                }`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Kotak Sampah</span>
+                {trashData?.items && trashData.items.length > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono leading-none ${
+                      activeTab === 'trash'
+                        ? 'bg-white text-[#FF6500] font-black'
+                        : 'bg-red-500 text-white font-bold'
+                    }`}
+                  >
+                    {trashData.items.length}
+                  </span>
+                )}
+              </button>
+            </div>
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white dark:hover:bg-[#FF6701] transition-colors"
-            >
-              <Upload className="h-4 w-4 text-white" />
-              <span>Unggah Berkas</span>
-            </button>
+            {activeTab === 'drive' ? (
+              <>
+                <button
+                  onClick={() => setIsNewFolderOpen(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62]/40 transition-colors"
+                >
+                  <FolderPlus className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+                  <span>+ Folder Baru</span>
+                </button>
 
-            <button
-              onClick={() => folderInputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-[#FF6701]/10 px-3 py-2 text-xs font-bold text-[#FF6701] hover:bg-[#FF6701] hover:text-white dark:border-[#FF6500]/40 dark:bg-[#1E3E62]/60 dark:text-[#FF6500] dark:hover:bg-[#FF6500] dark:hover:text-white transition-colors"
-            >
-              <FolderArchive className="h-4 w-4" />
-              <span>Unggah Folder</span>
-            </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white dark:hover:bg-[#FF6701] transition-colors"
+                >
+                  <Upload className="h-4 w-4 text-white" />
+                  <span>Unggah Berkas</span>
+                </button>
 
-            <button
-              onClick={() => refetch()}
-              title="Perbarui data"
-              disabled={isFetching}
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#92B4EC] text-slate-600 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62] transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-            </button>
+                <button
+                  onClick={() => folderInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-[#FF6701]/10 px-3 py-2 text-xs font-bold text-[#FF6701] hover:bg-[#FF6701] hover:text-white dark:border-[#FF6500]/40 dark:bg-[#1E3E62]/60 dark:text-[#FF6500] dark:hover:bg-[#FF6500] dark:hover:text-white transition-colors"
+                >
+                  <FolderArchive className="h-4 w-4" />
+                  <span>Unggah Folder</span>
+                </button>
+
+                <button
+                  onClick={() => refetch()}
+                  title="Perbarui data"
+                  disabled={isFetching}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#92B4EC] text-slate-600 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62] transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsEmptyTrashOpen(true)}
+                  disabled={!trashData?.items || trashData.items.length === 0 || emptyTrashMutation.isPending}
+                  className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="h-4 w-4 text-white" />
+                  <span>Kosongkan Sampah</span>
+                </button>
+
+                <button
+                  onClick={() => refetchTrash()}
+                  title="Perbarui data sampah"
+                  disabled={isTrashFetching}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#92B4EC] text-slate-600 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62] transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isTrashFetching ? 'animate-spin' : ''}`} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
         {/* Search & Navigation Bar */}
         <div className="mt-4 pt-4 border-t border-[#92B4EC]/40 dark:border-[#1E3E62] flex flex-col sm:flex-row items-center justify-between gap-3">
-          {/* Breadcrumb Path */}
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto text-xs font-medium text-slate-600 dark:text-slate-300 py-1">
-            {currentFolderId && (
+          {/* Breadcrumb Path or Back to Drive */}
+          {activeTab === 'drive' ? (
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto text-xs font-medium text-slate-600 dark:text-slate-300 py-1">
+              {currentFolderId && (
+                <button
+                  onClick={() => {
+                    if (data?.breadcrumbs && data.breadcrumbs.length > 1) {
+                      const parent = data.breadcrumbs[data.breadcrumbs.length - 2];
+                      setCurrentFolderId(parent.id);
+                    } else {
+                      setCurrentFolderId(null);
+                    }
+                  }}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-[#92B4EC]/20 dark:hover:bg-[#1E3E62] text-[#FF6701] dark:text-[#FF6500] font-bold"
+                  title="Ke folder sebelumnya"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Kembali</span>
+                </button>
+              )}
+
               <button
-                onClick={() => {
-                  if (data?.breadcrumbs && data.breadcrumbs.length > 1) {
-                    const parent = data.breadcrumbs[data.breadcrumbs.length - 2];
-                    setCurrentFolderId(parent.id);
-                  } else {
-                    setCurrentFolderId(null);
-                  }
-                }}
-                className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-[#92B4EC]/20 dark:hover:bg-[#1E3E62] text-[#FF6701] dark:text-[#FF6500] font-bold"
-                title="Ke folder sebelumnya"
+                onClick={() => setCurrentFolderId(null)}
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors ${
+                  currentFolderId === null
+                    ? 'bg-[#92B4EC]/25 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] font-bold'
+                    : 'hover:bg-[#92B4EC]/15 hover:text-slate-900 dark:hover:bg-[#1E3E62]/50'
+                }`}
+              >
+                <Home className="h-3.5 w-3.5" />
+                <span>Drive Saya</span>
+              </button>
+
+              {data?.breadcrumbs &&
+                data.breadcrumbs.map((crumb, idx) => (
+                  <React.Fragment key={crumb.id || idx}>
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <button
+                      onClick={() => setCurrentFolderId(crumb.id)}
+                      className={`rounded-lg px-2 py-1 whitespace-nowrap transition-colors ${
+                        currentFolderId === crumb.id
+                          ? 'bg-[#92B4EC]/25 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] font-bold'
+                          : 'hover:bg-[#92B4EC]/15 hover:text-slate-900 dark:hover:bg-[#1E3E62]/50'
+                      }`}
+                    >
+                      {crumb.name}
+                    </button>
+                  </React.Fragment>
+                ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 w-full sm:w-auto py-1">
+              <button
+                onClick={() => setActiveTab('drive')}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold text-[#FF6701] dark:text-[#FF6500] hover:bg-[#92B4EC]/20 dark:hover:bg-[#1E3E62] transition-colors"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Kembali</span>
+                <span>Kembali ke Drive Saya</span>
               </button>
-            )}
-
-            <button
-              onClick={() => setCurrentFolderId(null)}
-              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors ${
-                currentFolderId === null
-                  ? 'bg-[#92B4EC]/25 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] font-bold'
-                  : 'hover:bg-[#92B4EC]/15 hover:text-slate-900 dark:hover:bg-[#1E3E62]/50'
-              }`}
-            >
-              <Home className="h-3.5 w-3.5" />
-              <span>Drive Saya</span>
-            </button>
-
-            {data?.breadcrumbs &&
-              data.breadcrumbs.map((crumb, idx) => (
-                <React.Fragment key={crumb.id || idx}>
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  <button
-                    onClick={() => setCurrentFolderId(crumb.id)}
-                    className={`rounded-lg px-2 py-1 whitespace-nowrap transition-colors ${
-                      currentFolderId === crumb.id
-                        ? 'bg-[#92B4EC]/25 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] font-bold'
-                        : 'hover:bg-[#92B4EC]/15 hover:text-slate-900 dark:hover:bg-[#1E3E62]/50'
-                    }`}
-                  >
-                    {crumb.name}
-                  </button>
-                </React.Fragment>
-              ))}
-          </div>
+            </div>
+          )}
 
           {/* Search Input & View Toggle */}
           <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
@@ -462,7 +640,7 @@ export const DrivePage: React.FC = () => {
               <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Cari berkas atau folder..."
+                placeholder={activeTab === 'trash' ? 'Cari di kotak sampah...' : 'Cari berkas atau folder...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full rounded-xl border border-[#92B4EC] bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:outline-none dark:border-[#1E3E62] dark:bg-[#000000] dark:text-white"
@@ -505,8 +683,8 @@ export const DrivePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Current Folder Info & Space Banner */}
-      {data?.current_folder && (
+      {/* Current Folder Info & Space Banner (Only in Drive Tab) */}
+      {activeTab === 'drive' && data?.current_folder && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#92B4EC] bg-[#F3F6FD] px-4 py-3 dark:border-[#1E3E62] dark:bg-[#000000] shadow-xs animate-fade-in">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white">
@@ -540,7 +718,208 @@ export const DrivePage: React.FC = () => {
       )}
 
       {/* Main Content Area */}
-      {isLoading ? (
+      {activeTab === 'trash' ? (
+        <div className="space-y-6">
+          {/* Quarantine Information Banner */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-amber-900 dark:text-amber-200 shadow-xs">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                <Clock className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>Karantina Kotak Sampah (7 Hari)</span>
+                  <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-800 dark:text-amber-300">
+                    Auto-Purge 23:30 WIB
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                  Berkas dan folder yang Anda hapus diamankan di sini selama 7 hari sebelum dimusnahkan secara permanen oleh sistem. Anda dapat memulihkannya kapan saja ke Drive Saya.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Trash Content */}
+          {isTrashLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-28 rounded-2xl border border-[#92B4EC]/50 bg-[#92B4EC]/10 dark:border-[#1E3E62] dark:bg-[#0B192C] animate-pulse"
+                />
+              ))}
+            </div>
+          ) : filteredTrashItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-[#92B4EC] dark:border-[#1E3E62] bg-white/50 dark:bg-[#0B192C]/50">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#92B4EC]/20 dark:bg-[#1E3E62] text-slate-400 dark:text-slate-500 mb-4">
+                <Trash2 className="h-8 w-8" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {debouncedSearch ? 'Tidak ada item sampah yang cocok' : 'Kotak Sampah Kosong'}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+                {debouncedSearch
+                  ? `Tidak ada berkas di kotak sampah yang cocok dengan pencarian "${debouncedSearch}".`
+                  : 'Tidak ada berkas atau folder dalam masa karantina sampah.'}
+              </p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {filteredTrashItems.map((item) => {
+                const remainingDays = getRemainingQuarantineDays(item.trashed_at);
+                const isUrgent = remainingDays <= 1;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="group relative flex flex-col justify-between rounded-2xl border border-[#92B4EC] bg-white p-3.5 dark:border-[#1E3E62] dark:bg-[#0B192C] shadow-xs hover:border-[#FF6701] dark:hover:border-[#FF6500] transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FEA82F]/15 dark:bg-[#1E3E62]">
+                          {getFileIcon(item)}
+                        </div>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                            isUrgent
+                              ? 'border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400'
+                              : 'border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                          }`}
+                          title={`Dihapus: ${item.trashed_at ? formatDate(item.trashed_at) : '-'}`}
+                        >
+                          <Clock className="h-3 w-3" />
+                          {remainingDays === 0 ? '< 1 hari lagi' : `${remainingDays} hari tersisa`}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 min-w-0">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate" title={item.name}>
+                          {item.name}
+                        </p>
+                        <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                          <span>
+                            {item.type === 'folder'
+                              ? item.item_count !== undefined
+                                ? `${item.item_count} item`
+                                : 'Folder'
+                              : formatBytes(item.size_bytes)}
+                          </span>
+                          <span>{item.trashed_at ? formatDate(item.trashed_at).split(',')[0] : ''}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => restoreMutation.mutate(item.id)}
+                        disabled={restoreMutation.isPending}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-2.5 py-1.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors disabled:opacity-50"
+                        title="Pulihkan ke Drive Saya"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 text-white" />
+                        <span>Pulihkan</span>
+                      </button>
+                      <button
+                        onClick={() => setPermanentDeleteTarget(item)}
+                        className="p-1.5 rounded-xl border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
+                        title="Hapus Permanen"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-[#92B4EC] bg-white dark:border-[#1E3E62] dark:bg-[#0B192C]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-[#92B4EC]/40 bg-slate-50/50 dark:border-[#1E3E62] dark:bg-[#000000] text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold">
+                    <tr>
+                      <th className="px-4 py-3">Nama Berkas / Folder</th>
+                      <th className="px-4 py-3">Ukuran</th>
+                      <th className="px-4 py-3">Tipe</th>
+                      <th className="px-4 py-3">Waktu Masuk Sampah</th>
+                      <th className="px-4 py-3">Masa Karantina</th>
+                      <th className="px-4 py-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#92B4EC]/30 dark:divide-[#1E3E62]/60">
+                    {filteredTrashItems.map((item) => {
+                      const remainingDays = getRemainingQuarantineDays(item.trashed_at);
+                      const isUrgent = remainingDays <= 1;
+
+                      return (
+                        <tr
+                          key={item.id}
+                          className="hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30 transition-colors"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="shrink-0">{getFileIcon(item)}</div>
+                              <span
+                                className="font-bold text-slate-900 dark:text-white truncate max-w-xs"
+                                title={item.name}
+                              >
+                                {item.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+                            {formatBytes(item.size_bytes)}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-medium text-[11px]">
+                            {item.type === 'folder'
+                              ? `Folder (${item.item_count || 0} item)`
+                              : item.mime_type || 'Berkas'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                            {item.trashed_at ? formatDate(item.trashed_at) : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                isUrgent
+                                  ? 'border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400'
+                                  : 'border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                              }`}
+                            >
+                              <Clock className="h-3 w-3" />
+                              {remainingDays === 0 ? '< 1 hari lagi' : `${remainingDays} hari tersisa`}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => restoreMutation.mutate(item.id)}
+                                disabled={restoreMutation.isPending}
+                                className="flex items-center gap-1.5 rounded-lg bg-[#FF6701] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors disabled:opacity-50"
+                                title="Pulihkan ke Drive Saya"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5 text-white" />
+                                <span>Pulihkan</span>
+                              </button>
+                              <button
+                                onClick={() => setPermanentDeleteTarget(item)}
+                                className="p-1.5 rounded-lg border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
+                                title="Hapus Permanen"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {[...Array(6)].map((_, i) => (
             <div
@@ -1034,22 +1413,32 @@ export const DrivePage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* MODAL: Konfirmasi Hapus */}
+      {/* MODAL: Konfirmasi Pindahkan ke Kotak Sampah (Karantina 7 Hari) */}
       <Modal
         isOpen={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
-        title="Konfirmasi Hapus"
+        title="Pindahkan ke Kotak Sampah"
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Apakah Anda yakin ingin menghapus {deleteTarget?.type === 'folder' ? 'folder' : 'berkas'}{' '}
-            <strong className="text-slate-900 dark:text-white font-bold">"{deleteTarget?.name}"</strong>?
+            Apakah Anda yakin ingin memindahkan {deleteTarget?.type === 'folder' ? 'folder' : 'berkas'}{' '}
+            <strong className="text-slate-900 dark:text-white font-bold">"{deleteTarget?.name}"</strong> ke Kotak Sampah?
           </p>
-          {deleteTarget?.type === 'folder' && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl">
-              Peringatan: Seluruh berkas dan subfolder di dalam folder ini juga akan dihapus secara permanen.
+
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200 space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-300">
+              <Clock className="h-4 w-4" />
+              <span>Karantina 7 Hari</span>
+            </div>
+            <p>
+              Item tidak langsung terhapus permanen. Item akan disimpan di Kotak Sampah selama 7 hari sebelum dihapus permanen secara otomatis oleh sistem. Anda dapat memulihkannya kapan saja ke Drive Saya.
             </p>
-          )}
+            {deleteTarget?.type === 'folder' && (
+              <p className="font-semibold text-red-600 dark:text-red-400 pt-1">
+                * Seluruh berkas dan subfolder di dalam folder ini juga akan ikut dipindahkan ke Kotak Sampah.
+              </p>
+            )}
+          </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
@@ -1063,9 +1452,95 @@ export const DrivePage: React.FC = () => {
               type="button"
               disabled={deleteMutation.isPending}
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-              className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white disabled:opacity-50 transition-colors"
             >
-              {deleteMutation.isPending ? 'Menghapus...' : 'Hapus Sekarang'}
+              <Trash2 className="h-3.5 w-3.5 text-white" />
+              <span>{deleteMutation.isPending ? 'Memindahkan...' : 'Pindahkan ke Sampah'}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: Konfirmasi Hapus Permanen */}
+      <Modal
+        isOpen={permanentDeleteTarget !== null}
+        onClose={() => setPermanentDeleteTarget(null)}
+        title="Hapus Permanen"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-red-600 dark:text-red-400">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-bold">Peringatan: Tindakan ini permanen!</p>
+              <p className="mt-0.5">
+                Berkas atau folder akan langsung dimusnahkan dari server dan tidak dapat dipulihkan kembali.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Apakah Anda yakin ingin menghapus permanen {permanentDeleteTarget?.type === 'folder' ? 'folder' : 'berkas'}{' '}
+            <strong className="text-slate-900 dark:text-white font-bold">"{permanentDeleteTarget?.name}"</strong>?
+          </p>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setPermanentDeleteTarget(null)}
+              className="rounded-xl border border-[#92B4EC] px-4 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62]"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={permanentDeleteMutation.isPending}
+              onClick={() => permanentDeleteTarget && permanentDeleteMutation.mutate(permanentDeleteTarget.id)}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-white" />
+              <span>{permanentDeleteMutation.isPending ? 'Menghapus...' : 'Hapus Permanen'}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: Konfirmasi Kosongkan Kotak Sampah */}
+      <Modal
+        isOpen={isEmptyTrashOpen}
+        onClose={() => setIsEmptyTrashOpen(false)}
+        title="Kosongkan Kotak Sampah"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-red-600 dark:text-red-400">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-bold">Peringatan: Seluruh item akan dihapus permanen!</p>
+              <p className="mt-0.5">
+                Semua {trashData?.items.length || 0} item di kotak sampah akan segera dihapus permanen dari server. Tindakan ini tidak dapat dibatalkan.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Apakah Anda yakin ingin mengosongkan seluruh isi Kotak Sampah sekarang?
+          </p>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsEmptyTrashOpen(false)}
+              className="rounded-xl border border-[#92B4EC] px-4 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62]"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={emptyTrashMutation.isPending}
+              onClick={() => emptyTrashMutation.mutate()}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-white" />
+              <span>{emptyTrashMutation.isPending ? 'Mengosongkan...' : 'Kosongkan Sekarang'}</span>
             </button>
           </div>
         </div>

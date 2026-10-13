@@ -99,6 +99,7 @@ func main() {
 	uploadService := service.NewUploadService(localStorage, uploadRepo, backupRepo, auditRepo)
 	backupService := service.NewBackupService(localStorage, backupRepo, tokenRepo, auditRepo, authService)
 	driveService := service.NewDriveService(driveRepo, cfg.DriveStoragePath)
+	cronScheduler.SetDriveTrashPurger(driveService)
 
 	// 8. Initialize handlers
 	authHandler := handler.NewAuthHandler(cfg, authService)
@@ -209,6 +210,10 @@ func main() {
 		r.Delete("/items/{id}", driveHandler.HandleDelete)
 		r.Patch("/items/{id}", driveHandler.HandleRename)
 		r.Post("/items/{id}/move", driveHandler.HandleMove)
+		r.Get("/trash", driveHandler.HandleListTrash)
+		r.Post("/trash/{id}/restore", driveHandler.HandleRestoreTrash)
+		r.Delete("/trash/{id}", driveHandler.HandlePermanentDeleteTrash)
+		r.Delete("/trash", driveHandler.HandleEmptyTrash)
 	})
 
 	// Dashboard stats & Audit log

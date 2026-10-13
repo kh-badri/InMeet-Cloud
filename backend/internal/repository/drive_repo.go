@@ -36,9 +36,9 @@ func (r *DriveRepository) Create(ctx context.Context, item *model.DriveItem) err
 	}
 
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO drive_items (id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`, item.ID, item.UserID, item.ParentID, item.Name, item.Type, item.SizeBytes, item.MimeType, item.StoragePath, item.CreatedAt, item.UpdatedAt)
+		INSERT INTO drive_items (id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, is_trashed, trashed_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, item.ID, item.UserID, item.ParentID, item.Name, item.Type, item.SizeBytes, item.MimeType, item.StoragePath, item.IsTrashed, item.TrashedAt, item.CreatedAt, item.UpdatedAt)
 	return err
 }
 
@@ -48,23 +48,23 @@ func (r *DriveRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid
 		       CASE 
 		         WHEN d.type = 'folder' THEN (
 		           WITH RECURSIVE folder_tree AS (
-		             SELECT id, size_bytes FROM drive_items WHERE parent_id = d.id
+		             SELECT id, size_bytes FROM drive_items WHERE parent_id = d.id AND is_trashed = false
 		             UNION ALL
-		             SELECT child.id, child.size_bytes FROM drive_items child JOIN folder_tree ON child.parent_id = folder_tree.id
+		             SELECT child.id, child.size_bytes FROM drive_items child JOIN folder_tree ON child.parent_id = folder_tree.id WHERE child.is_trashed = false
 		           )
 		           SELECT COALESCE(SUM(size_bytes), 0) FROM folder_tree
 		         )
 		         ELSE d.size_bytes
 		       END AS size_bytes,
-		       mime_type, storage_path, created_at, updated_at,
-		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count
+		       mime_type, storage_path, is_trashed, trashed_at, created_at, updated_at,
+		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id AND c.is_trashed = false) AS item_count
 		FROM drive_items d
 		WHERE id = $1 AND user_id = $2
 	`, id, userID)
 
 	var item model.DriveItem
 	var itemCount int
-	err := row.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.CreatedAt, &item.UpdatedAt, &itemCount)
+	err := row.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrDriveItemNotFound
@@ -86,32 +86,32 @@ func (r *DriveRepository) List(ctx context.Context, userID uuid.UUID, parentID *
 		       CASE 
 		         WHEN d.type = 'folder' THEN (
 		           WITH RECURSIVE folder_tree AS (
-		             SELECT id, size_bytes FROM drive_items WHERE parent_id = d.id
+		             SELECT id, size_bytes FROM drive_items WHERE parent_id = d.id AND is_trashed = false
 		             UNION ALL
-		             SELECT child.id, child.size_bytes FROM drive_items child JOIN folder_tree ON child.parent_id = folder_tree.id
+		             SELECT child.id, child.size_bytes FROM drive_items child JOIN folder_tree ON child.parent_id = folder_tree.id WHERE child.is_trashed = false
 		           )
 		           SELECT COALESCE(SUM(size_bytes), 0) FROM folder_tree
 		         )
 		         ELSE d.size_bytes
 		       END AS size_bytes,
-		       mime_type, storage_path, created_at, updated_at,
-		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count
+		       mime_type, storage_path, is_trashed, trashed_at, created_at, updated_at,
+		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id AND c.is_trashed = false) AS item_count
 		FROM drive_items d
 	`
 
 	if query != "" {
 		rows, err = r.pool.Query(ctx, selectColumns+`
-			WHERE user_id = $1 AND name ILIKE '%' || $2 || '%'
+			WHERE user_id = $1 AND d.is_trashed = false AND name ILIKE '%' || $2 || '%'
 			ORDER BY type DESC, name ASC
 		`, userID, query)
 	} else if parentID == nil {
 		rows, err = r.pool.Query(ctx, selectColumns+`
-			WHERE user_id = $1 AND parent_id IS NULL
+			WHERE user_id = $1 AND d.is_trashed = false AND parent_id IS NULL
 			ORDER BY type DESC, name ASC
 		`, userID)
 	} else {
 		rows, err = r.pool.Query(ctx, selectColumns+`
-			WHERE user_id = $1 AND parent_id = $2
+			WHERE user_id = $1 AND d.is_trashed = false AND parent_id = $2
 			ORDER BY type DESC, name ASC
 		`, userID, *parentID)
 	}
@@ -125,7 +125,50 @@ func (r *DriveRepository) List(ctx context.Context, userID uuid.UUID, parentID *
 	for rows.Next() {
 		var item model.DriveItem
 		var itemCount int
-		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.CreatedAt, &item.UpdatedAt, &itemCount)
+		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount)
+		if err != nil {
+			return nil, err
+		}
+		if item.Type == model.DriveItemTypeFolder {
+			item.ItemCount = &itemCount
+		}
+		items = append(items, &item)
+	}
+	return items, nil
+}
+
+func (r *DriveRepository) ListTrash(ctx context.Context, userID uuid.UUID) ([]*model.DriveItem, error) {
+	const selectColumns = `
+		SELECT id, user_id, parent_id, name, type,
+		       CASE 
+		         WHEN d.type = 'folder' THEN (
+		           WITH RECURSIVE folder_tree AS (
+		             SELECT id, size_bytes FROM drive_items WHERE parent_id = d.id
+		             UNION ALL
+		             SELECT child.id, child.size_bytes FROM drive_items child JOIN folder_tree ON child.parent_id = folder_tree.id
+		           )
+		           SELECT COALESCE(SUM(size_bytes), 0) FROM folder_tree
+		         )
+		         ELSE d.size_bytes
+		       END AS size_bytes,
+		       mime_type, storage_path, is_trashed, trashed_at, created_at, updated_at,
+		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count
+		FROM drive_items d
+		WHERE user_id = $1 AND d.is_trashed = true
+		ORDER BY d.trashed_at DESC, d.name ASC
+	`
+
+	rows, err := r.pool.Query(ctx, selectColumns, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]*model.DriveItem, 0)
+	for rows.Next() {
+		var item model.DriveItem
+		var itemCount int
+		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount)
 		if err != nil {
 			return nil, err
 		}
@@ -202,16 +245,16 @@ func (r *DriveRepository) FindFolderByName(ctx context.Context, userID uuid.UUID
 func (r *DriveRepository) FindDescendants(ctx context.Context, userID uuid.UUID, rootID uuid.UUID) ([]*model.DriveItem, error) {
 	rows, err := r.pool.Query(ctx, `
 		WITH RECURSIVE item_tree AS (
-			SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, created_at, updated_at
+			SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, is_trashed, trashed_at, created_at, updated_at
 			FROM drive_items
 			WHERE id = $1 AND user_id = $2
 			UNION ALL
-			SELECT c.id, c.user_id, c.parent_id, c.name, c.type, c.size_bytes, c.mime_type, c.storage_path, c.created_at, c.updated_at
+			SELECT c.id, c.user_id, c.parent_id, c.name, c.type, c.size_bytes, c.mime_type, c.storage_path, c.is_trashed, c.trashed_at, c.created_at, c.updated_at
 			FROM drive_items c
 			JOIN item_tree ON c.parent_id = item_tree.id
 			WHERE c.user_id = $2
 		)
-		SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, created_at, updated_at
+		SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, is_trashed, trashed_at, created_at, updated_at
 		FROM item_tree;
 	`, rootID, userID)
 	if err != nil {
@@ -222,7 +265,7 @@ func (r *DriveRepository) FindDescendants(ctx context.Context, userID uuid.UUID,
 	items := make([]*model.DriveItem, 0)
 	for rows.Next() {
 		var item model.DriveItem
-		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.CreatedAt, &item.UpdatedAt)
+		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -231,7 +274,57 @@ func (r *DriveRepository) FindDescendants(ctx context.Context, userID uuid.UUID,
 	return items, nil
 }
 
-func (r *DriveRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+func (r *DriveRepository) MoveToTrash(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	cmd, err := r.pool.Exec(ctx, `
+		WITH RECURSIVE item_tree AS (
+			SELECT id FROM drive_items WHERE id = $1 AND user_id = $2
+			UNION ALL
+			SELECT child.id FROM drive_items child JOIN item_tree ON child.parent_id = item_tree.id
+		)
+		UPDATE drive_items
+		SET is_trashed = true, trashed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		WHERE id IN (SELECT id FROM item_tree) AND user_id = $2
+	`, id, userID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return ErrDriveItemNotFound
+	}
+	return nil
+}
+
+func (r *DriveRepository) RestoreFromTrash(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	// If parent folder is still trashed, detach to root (parent_id = NULL)
+	_, err := r.pool.Exec(ctx, `
+		UPDATE drive_items
+		SET parent_id = NULL
+		WHERE id = $1 AND user_id = $2 AND parent_id IN (SELECT id FROM drive_items WHERE is_trashed = true)
+	`, id, userID)
+	if err != nil {
+		return err
+	}
+
+	cmd, err := r.pool.Exec(ctx, `
+		WITH RECURSIVE item_tree AS (
+			SELECT id FROM drive_items WHERE id = $1 AND user_id = $2
+			UNION ALL
+			SELECT child.id FROM drive_items child JOIN item_tree ON child.parent_id = item_tree.id
+		)
+		UPDATE drive_items
+		SET is_trashed = false, trashed_at = NULL, updated_at = CURRENT_TIMESTAMP
+		WHERE id IN (SELECT id FROM item_tree) AND user_id = $2
+	`, id, userID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return ErrDriveItemNotFound
+	}
+	return nil
+}
+
+func (r *DriveRepository) DeletePermanent(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	cmd, err := r.pool.Exec(ctx, `
 		DELETE FROM drive_items WHERE id = $1 AND user_id = $2
 	`, id, userID)
@@ -242,6 +335,46 @@ func (r *DriveRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.
 		return ErrDriveItemNotFound
 	}
 	return nil
+}
+
+func (r *DriveRepository) EmptyTrash(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		DELETE FROM drive_items WHERE user_id = $1 AND is_trashed = true
+	`, userID)
+	return err
+}
+
+func (r *DriveRepository) GetExpiredTrashItems(ctx context.Context, olderThan time.Time) ([]*model.DriveItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, is_trashed, trashed_at, created_at, updated_at
+		FROM drive_items
+		WHERE is_trashed = true AND trashed_at <= $1
+	`, olderThan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*model.DriveItem
+	for rows.Next() {
+		var item model.DriveItem
+		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, &item)
+	}
+	return items, nil
+}
+
+func (r *DriveRepository) PurgeExpiredTrash(ctx context.Context, olderThan time.Time) (int64, error) {
+	cmd, err := r.pool.Exec(ctx, `
+		DELETE FROM drive_items WHERE is_trashed = true AND trashed_at <= $1
+	`, olderThan)
+	if err != nil {
+		return 0, err
+	}
+	return cmd.RowsAffected(), nil
 }
 
 func (r *DriveRepository) Rename(ctx context.Context, id uuid.UUID, userID uuid.UUID, newName string) error {
@@ -261,7 +394,7 @@ func (r *DriveRepository) GetStats(ctx context.Context, userID uuid.UUID) (int, 
 	row := r.pool.QueryRow(ctx, `
 		SELECT COUNT(*), COALESCE(SUM(size_bytes), 0)
 		FROM drive_items
-		WHERE user_id = $1
+		WHERE user_id = $1 AND is_trashed = false
 	`, userID)
 
 	var count int
@@ -303,7 +436,7 @@ func (r *DriveRepository) ListAllFolders(ctx context.Context, userID uuid.UUID) 
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, parent_id, name
 		FROM drive_items
-		WHERE user_id = $1 AND type = 'folder'
+		WHERE user_id = $1 AND type = 'folder' AND is_trashed = false
 		ORDER BY name ASC
 	`, userID)
 	if err != nil {

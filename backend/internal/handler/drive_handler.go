@@ -427,3 +427,80 @@ func (h *DriveHandler) HandleAbortUpload(w http.ResponseWriter, r *http.Request)
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "sesi upload dibatalkan"})
 }
+
+func (h *DriveHandler) HandleListTrash(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	items, err := h.driveService.ListTrash(r.Context(), user.ID)
+	if err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"items": items,
+	})
+}
+
+func (h *DriveHandler) HandleRestoreTrash(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	if err := h.driveService.RestoreItem(r.Context(), user.ID, id); err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "item berhasil dipulihkan"})
+}
+
+func (h *DriveHandler) HandlePermanentDeleteTrash(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	if err := h.driveService.PermanentDeleteItem(r.Context(), user.ID, id); err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "item berhasil dihapus secara permanen"})
+}
+
+func (h *DriveHandler) HandleEmptyTrash(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.driveService.EmptyTrash(r.Context(), user.ID); err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "seluruh isi sampah berhasil dikosongkan"})
+}

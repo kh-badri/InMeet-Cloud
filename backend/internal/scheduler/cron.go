@@ -10,12 +10,17 @@ import (
 	"backupvault/internal/notification"
 )
 
+type DriveTrashPurger interface {
+	PurgeExpiredTrash(ctx context.Context, olderThan time.Time) error
+}
+
 type CronScheduler struct {
-	cfg       *config.Config
-	retention *RetentionManager
-	scrubber  *IntegrityScrubber
-	notifier  *notification.Notifier
-	stopChan  chan struct{}
+	cfg         *config.Config
+	retention   *RetentionManager
+	scrubber    *IntegrityScrubber
+	notifier    *notification.Notifier
+	drivePurger DriveTrashPurger
+	stopChan    chan struct{}
 }
 
 func NewCronScheduler(
@@ -31,6 +36,10 @@ func NewCronScheduler(
 		notifier:  notifier,
 		stopChan:  make(chan struct{}),
 	}
+}
+
+func (s *CronScheduler) SetDriveTrashPurger(purger DriveTrashPurger) {
+	s.drivePurger = purger
 }
 
 func (s *CronScheduler) Start(ctx context.Context) {
@@ -71,6 +80,15 @@ func (s *CronScheduler) tick(ctx context.Context) {
 		_, err := s.retention.Run(ctx, now, false)
 		if err != nil {
 			slog.Error("Scheduled retention run failed", "error", err)
+		}
+
+		// 2. Drive 7-Day trash quarantine purge: Permanently removes drive items trashed > 7 days ago
+		if s.drivePurger != nil {
+			cutoff := now.AddDate(0, 0, -7)
+			slog.Info("Triggering daily scheduled Drive 7-day trash quarantine purge", "cutoff", cutoff.Format("2006-01-02"))
+			if err := s.drivePurger.PurgeExpiredTrash(ctx, cutoff); err != nil {
+				slog.Error("Scheduled Drive trash purge failed", "error", err)
+			}
 		}
 	}
 
