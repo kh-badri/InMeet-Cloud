@@ -58,7 +58,7 @@ func TestRetentionEvaluationAndMinKeep(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	db, err := database.Connect(ctx, cfg.DatabaseURL, 5, 2)
+	db, err := database.Connect(ctx, cfg.TestDatabaseURL, 5, 2)
 	if err != nil {
 		t.Fatalf("Failed to connect to db: %v", err)
 	}

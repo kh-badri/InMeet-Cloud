@@ -16,6 +16,7 @@ type Config struct {
 	AppURL               string
 	Timezone             string
 	DatabaseURL          string
+	TestDatabaseURL      string
 	DBMaxOpenConns       int
 	DBMaxIdleConns       int
 	SessionSecret        []byte
@@ -58,6 +59,7 @@ func Load(envFile string) (*Config, error) {
 		AppURL:               getEnv("APP_URL", "http://localhost:8080"),
 		Timezone:             getEnv("TIMEZONE", "Asia/Jakarta"),
 		DatabaseURL:          getEnv("DATABASE_URL", "postgres://backupvault:backupvault_secret@127.0.0.1:5432/backupvault_db?sslmode=disable"),
+		TestDatabaseURL:      getEnv("TEST_DATABASE_URL", "postgres://backupvault:backupvault_secret@127.0.0.1:5432/backupvault_test_db?sslmode=disable"),
 		DBMaxOpenConns:       getEnvInt("DB_MAX_OPEN_CONNS", 25),
 		DBMaxIdleConns:       getEnvInt("DB_MAX_IDLE_CONNS", 10),
 		StorageDriver:        getEnv("STORAGE_DRIVER", "local"),
