@@ -21,13 +21,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   if (isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <div className="h-44 rounded-2xl border border-[#92B4EC]/60 bg-white p-6 dark:border-[#1E3E62] dark:bg-[#0B192C] shimmer-effect flex flex-col justify-between" />
+        <div className="h-44 rounded-2xl border border-[#92B4EC]/60 bg-white p-6 dark:border-[#1E3E62] dark:bg-[#0B192C] animate-pulse flex flex-col justify-between" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-32 rounded-2xl border border-[#92B4EC]/60 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] shimmer-effect" />
+            <div key={i} className="h-32 rounded-2xl border border-[#92B4EC]/60 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] animate-pulse" />
           ))}
         </div>
-        <div className="h-64 rounded-2xl border border-[#92B4EC]/60 bg-white p-6 dark:border-[#1E3E62] dark:bg-[#0B192C] shimmer-effect" />
+        <div className="h-64 rounded-2xl border border-[#92B4EC]/60 bg-white p-6 dark:border-[#1E3E62] dark:bg-[#0B192C] animate-pulse" />
       </div>
     );
   }

@@ -11,7 +11,7 @@ export const Navbar: React.FC<NavbarProps> = ({ isSidebarOpen, onToggleSidebar }
   const { user, theme, toggleTheme, logout } = useAuth();
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[#92B4EC]/60 bg-white/95 backdrop-blur-md px-4 dark:border-[#1E3E62] dark:bg-[#0B192C]/95 sm:px-6 transition-colors">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[#92B4EC]/70 bg-white px-4 dark:border-[#1E3E62] dark:bg-[#0B192C] sm:px-6 transition-colors">
       <div className="flex items-center gap-3.5">
         {/* Hamburger Toggle Button */}
         <button

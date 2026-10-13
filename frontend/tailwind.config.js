@@ -67,10 +67,6 @@ export default {
           '50%': { transform: 'translateX(100%)', width: '60%' },
           '100%': { transform: 'translateX(350%)', width: '30%' },
         },
-        pulseGlow: {
-          '0%, 100%': { opacity: '0.35', transform: 'scale(1)' },
-          '50%': { opacity: '0.8', transform: 'scale(1.08)' },
-        },
       },
       animation: {
         'page-reveal': 'pageReveal 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards',
@@ -78,7 +74,6 @@ export default {
         'scale-in': 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'slide-down': 'slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'indeterminate': 'indeterminateSlide 1.3s cubic-bezier(0.4, 0, 0.2, 1) infinite',
-        'pulse-glow': 'pulseGlow 2.4s ease-in-out infinite',
       },
     },
   },

@@ -21,7 +21,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 md:hidden items-center justify-around border-t border-[#92B4EC]/60 bg-white/95 backdrop-blur-md px-2 dark:border-[#1E3E62] dark:bg-[#0B192C]/95 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 md:hidden items-center justify-around border-t border-[#92B4EC]/70 bg-white px-2 dark:border-[#1E3E62] dark:bg-[#0B192C] pb-safe shadow-sm">
       {navItems.map((item) => {
         if (item.adminOnly && !isAdmin) return null;
         const isActive = activeTab === item.id;

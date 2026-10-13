@@ -34,7 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         flex flex-col border-r border-[#92B4EC]/60 bg-white dark:border-[#1E3E62] dark:bg-[#0B192C]
         transition-all duration-300 ease-in-out shrink-0 overflow-hidden
         ${isOpen 
-          ? 'w-64 translate-x-0 opacity-100 shadow-xl md:shadow-none' 
+          ? 'w-64 translate-x-0 opacity-100 shadow-md md:shadow-none' 
           : '-translate-x-full md:translate-x-0 md:w-0 md:opacity-0 md:border-r-0 md:pointer-events-none'
         }
         h-[calc(100vh-4rem)]
