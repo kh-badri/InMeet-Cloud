@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: backupvault_db
+      POSTGRES_USER: backupvault
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-backupvault_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backupvault -d backupvault_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal_net
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ../backend/.env
+    environment:
+      DATABASE_URL: postgres://backupvault:${DB_PASSWORD:-backupvault_secret}@db:5432/backupvault_db?sslmode=disable
+      STORAGE_LOCAL_PATH: /var/backupvault/storage
+    volumes:
+      - backup_storage:/var/backupvault/storage
+    ports:
+      - "8080:8080"
+    networks:
+      - internal_net
+
+volumes:
+  postgres_data:
+  backup_storage:
+
+networks:
+  internal_net:
+    driver: bridge

@@ -1,0 +1,34 @@
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /app/backupvault-server ./cmd/server
+
+# Production stage
+FROM alpine:3.20
+
+# Run as non-root user
+RUN addgroup -S backupvault && adduser -S -G backupvault -u 1001 backupvault
+
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /app/backupvault-server /app/backupvault-server
+
+# Create storage directory and set permissions
+RUN mkdir -p /var/backupvault/storage && chown -R backupvault:backupvault /var/backupvault
+
+USER 1001:1001
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/backupvault-server"]

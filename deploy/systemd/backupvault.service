@@ -1,0 +1,33 @@
+[Unit]
+Description=BackupVault Cloud Storage Service
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=backupvault
+Group=backupvault
+WorkingDirectory=/var/www/cloudinmeet/backend
+ExecStart=/var/www/cloudinmeet/backend/backupvault-server
+Restart=always
+RestartSec=5s
+
+# Security Hardening Sandbox
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+ReadWritePaths=/var/www/cloudinmeet/storage
+
+# Resource Limits
+LimitNOFILE=65535
+
+# Environment file
+EnvironmentFile=/var/www/cloudinmeet/backend/.env
+
+[Install]
+WantedBy=multi-user.target
