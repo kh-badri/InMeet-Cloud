@@ -103,7 +103,7 @@ export const App: React.FC = () => {
         />
 
         {/* Main Content Area with Silky-Smooth Page Reveal Animation */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 min-w-0 p-3.5 sm:p-5 lg:p-6 max-w-7xl mx-auto w-full">
           <div
             key={activeTab}
             className="animate-page-reveal"
