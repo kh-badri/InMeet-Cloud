@@ -14,6 +14,7 @@ export interface StoredUploadTask {
   chunkSize: number;
   totalChunks: number;
   lastChunkIndex: number;
+  uploadedChunks?: number[];
   parentFolderId: string | null;
   parentFolderName?: string;
   status: 'uploading' | 'paused' | 'completed' | 'error';

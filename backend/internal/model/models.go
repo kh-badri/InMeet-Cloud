@@ -239,6 +239,7 @@ type DriveUploadSession struct {
 	ChunkSize      int                      `json:"chunk_size"`
 	TotalChunks    int                      `json:"total_chunks"`
 	LastChunkIndex int                      `json:"last_chunk_index"`
+	UploadedChunks []int32                  `json:"uploaded_chunks"`
 	MimeType       string                   `json:"mime_type"`
 	TempPath       string                   `json:"-"`
 	Status         DriveUploadSessionStatus `json:"status"`
@@ -261,6 +262,7 @@ type InitUploadResponse struct {
 	ChunkSize      int       `json:"chunk_size"`
 	UploadedBytes  int64     `json:"uploaded_bytes"`
 	LastChunkIndex int       `json:"last_chunk_index"`
+	UploadedChunks []int32   `json:"uploaded_chunks"`
 }
 
 type CompleteUploadRequest struct {

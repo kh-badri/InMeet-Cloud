@@ -36,6 +36,13 @@ export const UploadDock: React.FC = () => {
     return `${hours}j ${remMins}m`;
   };
 
+  const formatSpeed = (bytesPerSec: number) => {
+    if (!bytesPerSec || bytesPerSec <= 0) return '';
+    const mbps = (bytesPerSec * 8) / 1_000_000;
+    const mbpsStr = mbps >= 10 ? mbps.toFixed(0) : mbps.toFixed(1);
+    return `${formatBytes(bytesPerSec)}/s (${mbpsStr} Mbps)`;
+  };
+
   const handleReattachFile = (task: UploadTask, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -196,7 +203,7 @@ export const UploadDock: React.FC = () => {
                       {task.speedBytesPerSec > 0 && (
                         <span className="flex items-center gap-0.5 text-[#FF6701] dark:text-[#FEA82F] font-bold">
                           <Zap className="h-2.5 w-2.5 text-[#FF6701] dark:text-[#FEA82F]" />
-                          {formatBytes(task.speedBytesPerSec)}/s
+                          {formatSpeed(task.speedBytesPerSec)}
                         </span>
                       )}
                       {task.etaSeconds > 0 && (

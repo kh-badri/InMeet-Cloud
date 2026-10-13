@@ -358,13 +358,13 @@ func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, 
 
 	chunkSize := req.ChunkSize
 	if chunkSize <= 0 {
-		chunkSize = 5 * 1024 * 1024 // 5MB default chunk
+		chunkSize = 10 * 1024 * 1024 // 10MB default chunk
 	}
 	if chunkSize < 512*1024 {
 		chunkSize = 512 * 1024 // 512KB minimum
 	}
-	if chunkSize > 50*1024*1024 {
-		chunkSize = 50 * 1024 * 1024 // 50MB maximum
+	if chunkSize > 64*1024*1024 {
+		chunkSize = 64 * 1024 * 1024 // 64MB maximum
 	}
 
 	totalChunks := int((req.TotalBytes + int64(chunkSize) - 1) / int64(chunkSize))
@@ -398,6 +398,7 @@ func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, 
 		ChunkSize:      chunkSize,
 		TotalChunks:    totalChunks,
 		LastChunkIndex: -1,
+		UploadedChunks: []int32{},
 		MimeType:       req.MimeType,
 		TempPath:       tempPath,
 		Status:         model.DriveUploadSessionInProgress,
@@ -416,6 +417,7 @@ func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, 
 		ChunkSize:      chunkSize,
 		UploadedBytes:  0,
 		LastChunkIndex: -1,
+		UploadedChunks: []int32{},
 	}, nil
 }
 
@@ -447,20 +449,9 @@ func (s *DriveService) SaveChunk(ctx context.Context, userID uuid.UUID, uploadID
 		return 0, fmt.Errorf("gagal menulis chunk berkas: %w", err)
 	}
 
-	newUploadedBytes := session.UploadedBytes
-	if chunkIndex > session.LastChunkIndex {
-		newUploadedBytes += written
-		if newUploadedBytes > session.TotalBytes {
-			newUploadedBytes = session.TotalBytes
-		}
-	}
-
-	lastIndex := session.LastChunkIndex
-	if chunkIndex > lastIndex {
-		lastIndex = chunkIndex
-	}
-
-	if err := s.repo.UpdateUploadSessionProgress(ctx, uploadID, userID, newUploadedBytes, lastIndex); err != nil {
+	// Atomically record chunk progress in database (thread-safe for concurrent chunks)
+	newUploadedBytes, err := s.repo.RecordChunkSuccess(ctx, uploadID, userID, chunkIndex, written)
+	if err != nil {
 		return 0, err
 	}
 
@@ -474,6 +465,10 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UU
 	}
 	if session.Status != model.DriveUploadSessionInProgress {
 		return nil, errors.New("sesi upload sudah tidak aktif")
+	}
+
+	if len(session.UploadedChunks) < session.TotalChunks {
+		return nil, fmt.Errorf("masih ada bagian berkas yang belum selesai diunggah (%d/%d bagian)", len(session.UploadedChunks), session.TotalChunks)
 	}
 
 	stat, err := os.Stat(session.TempPath)

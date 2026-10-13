@@ -57,6 +57,7 @@ func (db *DB) Migrate(ctx context.Context) error {
 		"migrations/001_initial_schema.sql",
 		"migrations/002_drive_schema.sql",
 		"migrations/003_drive_upload_sessions.sql",
+		"migrations/004_drive_upload_chunks_array.sql",
 	}
 
 	for _, file := range migrationFiles {

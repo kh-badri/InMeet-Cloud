@@ -133,6 +133,7 @@ export interface DriveUploadSession {
   chunk_size: number;
   total_chunks: number;
   last_chunk_index: number;
+  uploaded_chunks?: number[];
   mime_type: string;
   status: 'in_progress' | 'completed' | 'aborted';
   created_at: string;

@@ -21,6 +21,7 @@ export interface UploadTask {
   chunkSize: number;
   totalChunks: number;
   lastChunkIndex: number;
+  uploadedChunks: number[];
 }
 
 interface DriveUploadContextType {
@@ -37,7 +38,10 @@ interface DriveUploadContextType {
 
 const DriveUploadContext = createContext<DriveUploadContextType | undefined>(undefined);
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk (fast and resilient)
+// High-speed Gigabit upload configuration:
+// 10MB chunk size + 4 parallel HTTP/2 streams saturates 100Mbps - 1000Mbps line rate
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB per chunk
+const PARALLEL_CHUNKS = 4; // 4 concurrent workers
 
 export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<UploadTask[]>([]);
@@ -65,24 +69,146 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isUploading]);
 
-  // Worker function to upload chunks for a task
+  // High-speed parallel chunk worker pool for a task
   const processUploadTask = useCallback(async (task: UploadTask, file: File) => {
     const controller = new AbortController();
     abortControllersRef.current.set(task.id, controller);
     pauseFlagsRef.current.set(task.id, false);
 
-    let currentChunk = task.lastChunkIndex + 1;
-    let uploadedBytes = task.uploadedBytes;
     const totalBytes = task.totalBytes;
     const chunkSize = task.chunkSize;
     const totalChunks = task.totalChunks;
+    const completedChunks = new Set<number>(task.uploadedChunks || []);
+
+    // Exact byte calculation from completed chunk indices
+    let currentUploadedBytes = Array.from(completedChunks).reduce((acc, idx) => {
+      const s = idx * chunkSize;
+      const e = Math.min(s + chunkSize, totalBytes);
+      return acc + (e - s);
+    }, 0);
+
+    const pendingChunks: number[] = [];
+    for (let i = 0; i < totalChunks; i++) {
+      if (!completedChunks.has(i)) {
+        pendingChunks.push(i);
+      }
+    }
 
     let bytesInWindow = 0;
     let windowStartTime = Date.now();
+    let currentSpeed = 0;
 
     try {
-      while (currentChunk < totalChunks) {
-        if (pauseFlagsRef.current.get(task.id)) {
+      if (pendingChunks.length > 0) {
+        let chunkQueueIndex = 0;
+        let activeError: Error | null = null;
+
+        const worker = async () => {
+          while (chunkQueueIndex < pendingChunks.length) {
+            if (pauseFlagsRef.current.get(task.id) || controller.signal.aborted || activeError) {
+              return;
+            }
+
+            const chunkIdx = pendingChunks[chunkQueueIndex++];
+            if (chunkIdx === undefined) return;
+
+            const start = chunkIdx * chunkSize;
+            const end = Math.min(start + chunkSize, totalBytes);
+            const chunkBlob = file.slice(start, end);
+            const chunkLen = end - start;
+
+            const formData = new FormData();
+            formData.append('upload_id', task.id);
+            formData.append('chunk_index', String(chunkIdx));
+            formData.append('chunk', chunkBlob);
+
+            const res = await fetch('/api/v1/drive/upload/chunk', {
+              method: 'POST',
+              body: formData,
+              signal: controller.signal,
+              credentials: 'include',
+            });
+
+            if (!res.ok) {
+              if (pauseFlagsRef.current.get(task.id) || controller.signal.aborted) return;
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || `Gagal mengunggah bagian ke-${chunkIdx + 1}`);
+            }
+
+            completedChunks.add(chunkIdx);
+            currentUploadedBytes = Array.from(completedChunks).reduce((acc, idx) => {
+              const s = idx * chunkSize;
+              const e = Math.min(s + chunkSize, totalBytes);
+              return acc + (e - s);
+            }, 0);
+
+            bytesInWindow += chunkLen;
+
+            const now = Date.now();
+            const elapsed = (now - windowStartTime) / 1000;
+            if (elapsed >= 0.4) {
+              currentSpeed = bytesInWindow / elapsed;
+              bytesInWindow = 0;
+              windowStartTime = now;
+            }
+
+            const remainingBytes = Math.max(0, totalBytes - currentUploadedBytes);
+            const eta = currentSpeed > 0 ? Math.ceil(remainingBytes / currentSpeed) : 0;
+            const progress = totalBytes > 0 ? Math.min(100, Math.floor((currentUploadedBytes / totalBytes) * 100)) : 100;
+            const uploadedArray = Array.from(completedChunks);
+            const maxUploadedIndex = uploadedArray.length > 0 ? Math.max(...uploadedArray) : -1;
+
+            setTasks((prev) =>
+              prev.map((t) => {
+                if (t.id !== task.id) return t;
+                return {
+                  ...t,
+                  uploadedBytes: currentUploadedBytes,
+                  uploadedChunks: uploadedArray,
+                  lastChunkIndex: maxUploadedIndex,
+                  progressPercent: progress,
+                  speedBytesPerSec: currentSpeed || t.speedBytesPerSec,
+                  etaSeconds: eta,
+                };
+              })
+            );
+
+            // Sync to IndexedDB periodically
+            if (completedChunks.size % 2 === 0 || completedChunks.size === totalChunks) {
+              saveUploadToDB({
+                id: task.id,
+                file,
+                filename: task.filename,
+                relativePath: task.relativePath,
+                totalBytes,
+                uploadedBytes: currentUploadedBytes,
+                chunkSize,
+                totalChunks,
+                lastChunkIndex: maxUploadedIndex,
+                uploadedChunks: uploadedArray,
+                parentFolderId: task.parentFolderId,
+                parentFolderName: task.parentFolderName,
+                status: 'uploading',
+                updatedAt: Date.now(),
+              });
+            }
+          }
+        };
+
+        const workerCount = Math.min(PARALLEL_CHUNKS, pendingChunks.length);
+        const workers = Array.from({ length: workerCount }, () =>
+          worker().catch((err) => {
+            if (!activeError && !controller.signal.aborted && !pauseFlagsRef.current.get(task.id)) {
+              activeError = err;
+            }
+          })
+        );
+
+        await Promise.all(workers);
+
+        if (pauseFlagsRef.current.get(task.id) || controller.signal.aborted) {
+          const uploadedArray = Array.from(completedChunks);
+          const maxUploadedIndex = uploadedArray.length > 0 ? Math.max(...uploadedArray) : -1;
           setTasks((prev) =>
             prev.map((t) => (t.id === task.id ? { ...t, status: 'paused', speedBytesPerSec: 0 } : t))
           );
@@ -92,10 +218,11 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             filename: task.filename,
             relativePath: task.relativePath,
             totalBytes,
-            uploadedBytes,
+            uploadedBytes: currentUploadedBytes,
             chunkSize,
             totalChunks,
-            lastChunkIndex: currentChunk - 1,
+            lastChunkIndex: maxUploadedIndex,
+            uploadedChunks: uploadedArray,
             parentFolderId: task.parentFolderId,
             parentFolderName: task.parentFolderName,
             status: 'paused',
@@ -104,77 +231,8 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
           return;
         }
 
-        const start = currentChunk * chunkSize;
-        const end = Math.min(start + chunkSize, totalBytes);
-        const chunkBlob = file.slice(start, end);
-        const chunkLen = end - start;
-
-        const formData = new FormData();
-        formData.append('upload_id', task.id);
-        formData.append('chunk_index', String(currentChunk));
-        formData.append('chunk', chunkBlob);
-
-        const res = await fetch('/api/v1/drive/upload/chunk', {
-          method: 'POST',
-          body: formData,
-          signal: controller.signal,
-          credentials: 'include',
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Gagal mengunggah bagian ke-${currentChunk + 1}`);
-        }
-
-        uploadedBytes = Math.min(uploadedBytes + chunkLen, totalBytes);
-        bytesInWindow += chunkLen;
-
-        const now = Date.now();
-        const windowElapsed = (now - windowStartTime) / 1000;
-        let speed = 0;
-        if (windowElapsed >= 0.5) {
-          speed = bytesInWindow / windowElapsed;
-          bytesInWindow = 0;
-          windowStartTime = now;
-        }
-
-        const remainingBytes = Math.max(0, totalBytes - uploadedBytes);
-        const eta = speed > 0 ? Math.ceil(remainingBytes / speed) : 0;
-        const progress = Math.min(100, Math.floor((uploadedBytes / totalBytes) * 100));
-
-        currentChunk++;
-
-        setTasks((prev) =>
-          prev.map((t) => {
-            if (t.id !== task.id) return t;
-            return {
-              ...t,
-              uploadedBytes,
-              lastChunkIndex: currentChunk - 1,
-              progressPercent: progress,
-              speedBytesPerSec: speed || t.speedBytesPerSec,
-              etaSeconds: eta,
-            };
-          })
-        );
-
-        // Periodically sync progress to IndexedDB
-        if (currentChunk % 2 === 0 || currentChunk === totalChunks) {
-          saveUploadToDB({
-            id: task.id,
-            file,
-            filename: task.filename,
-            relativePath: task.relativePath,
-            totalBytes,
-            uploadedBytes,
-            chunkSize,
-            totalChunks,
-            lastChunkIndex: currentChunk - 1,
-            parentFolderId: task.parentFolderId,
-            parentFolderName: task.parentFolderName,
-            status: 'uploading',
-            updatedAt: Date.now(),
-          });
+        if (activeError) {
+          throw activeError;
         }
       }
 
@@ -214,7 +272,10 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
       queryClient.invalidateQueries({ queryKey: ['drive-items'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
     } catch (err: any) {
-      if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError' || pauseFlagsRef.current.get(task.id)) return;
+
+      const uploadedArray = Array.from(completedChunks);
+      const maxUploadedIndex = uploadedArray.length > 0 ? Math.max(...uploadedArray) : -1;
 
       setTasks((prev) =>
         prev.map((t) =>
@@ -235,10 +296,11 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
         filename: task.filename,
         relativePath: task.relativePath,
         totalBytes,
-        uploadedBytes,
+        uploadedBytes: currentUploadedBytes,
         chunkSize,
         totalChunks,
-        lastChunkIndex: currentChunk - 1,
+        lastChunkIndex: maxUploadedIndex,
+        uploadedChunks: uploadedArray,
         parentFolderId: task.parentFolderId,
         parentFolderName: task.parentFolderName,
         status: 'error',
@@ -273,6 +335,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const s = serverMap.get(t.id);
         const uploadedBytes = s ? s.uploaded_bytes : t.uploadedBytes;
         const lastChunkIndex = s ? s.last_chunk_index : t.lastChunkIndex;
+        const uploadedChunks = s?.uploaded_chunks || t.uploadedChunks || [];
         const progressPercent = t.totalBytes > 0 ? Math.floor((uploadedBytes / t.totalBytes) * 100) : 0;
 
         if (s && s.status === 'completed') {
@@ -296,6 +359,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
           chunkSize: t.chunkSize,
           totalChunks: t.totalChunks,
           lastChunkIndex,
+          uploadedChunks,
         };
 
         restoredList.push(task);
@@ -323,6 +387,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             chunkSize: s.chunk_size,
             totalChunks: s.total_chunks,
             lastChunkIndex: s.last_chunk_index,
+            uploadedChunks: s.uploaded_chunks || [],
           });
         }
       }
@@ -356,6 +421,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             chunk_size: number;
             uploaded_bytes: number;
             last_chunk_index: number;
+            uploaded_chunks?: number[];
           }>('/api/v1/drive/upload/init', {
             method: 'POST',
             body: JSON.stringify({
@@ -384,6 +450,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             chunkSize: initRes.chunk_size,
             totalChunks: initRes.total_chunks,
             lastChunkIndex: initRes.last_chunk_index,
+            uploadedChunks: initRes.uploaded_chunks || [],
           };
 
           // Save to IndexedDB so File persists across page refreshes!
@@ -397,6 +464,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             chunkSize: newTask.chunkSize,
             totalChunks: newTask.totalChunks,
             lastChunkIndex: newTask.lastChunkIndex,
+            uploadedChunks: newTask.uploadedChunks,
             parentFolderId: newTask.parentFolderId,
             parentFolderName: newTask.parentFolderName,
             status: 'uploading',
@@ -405,7 +473,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
           setTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)]);
 
-          // Start chunk upload loop
+          // Start high-speed parallel chunk upload loop
           processUploadTask(newTask, file);
         } catch (err: any) {
           console.error('Gagal inisialisasi upload:', err);
@@ -449,6 +517,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
           chunkSize: updated.chunkSize,
           totalChunks: updated.totalChunks,
           lastChunkIndex: updated.lastChunkIndex,
+          uploadedChunks: updated.uploadedChunks || [],
           parentFolderId: updated.parentFolderId,
           parentFolderName: updated.parentFolderName,
           status: 'uploading',

@@ -333,27 +333,31 @@ func (r *DriveRepository) CreateUploadSession(ctx context.Context, session *mode
 		session.UpdatedAt = session.CreatedAt
 	}
 
+	if session.UploadedChunks == nil {
+		session.UploadedChunks = []int32{}
+	}
+
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO drive_upload_sessions (
 			id, user_id, parent_id, filename, relative_path, total_bytes, uploaded_bytes,
-			chunk_size, total_chunks, last_chunk_index, mime_type, temp_path, status, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			chunk_size, total_chunks, last_chunk_index, uploaded_chunks, mime_type, temp_path, status, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`, session.ID, session.UserID, session.ParentID, session.Filename, session.RelativePath, session.TotalBytes, session.UploadedBytes,
-		session.ChunkSize, session.TotalChunks, session.LastChunkIndex, session.MimeType, session.TempPath, session.Status, session.CreatedAt, session.UpdatedAt)
+		session.ChunkSize, session.TotalChunks, session.LastChunkIndex, session.UploadedChunks, session.MimeType, session.TempPath, session.Status, session.CreatedAt, session.UpdatedAt)
 	return err
 }
 
 func (r *DriveRepository) GetUploadSession(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*model.DriveUploadSession, error) {
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, user_id, parent_id, filename, relative_path, total_bytes, uploaded_bytes,
-		       chunk_size, total_chunks, last_chunk_index, mime_type, temp_path, status, created_at, updated_at
+		       chunk_size, total_chunks, last_chunk_index, uploaded_chunks, mime_type, temp_path, status, created_at, updated_at
 		FROM drive_upload_sessions
 		WHERE id = $1 AND user_id = $2
 	`, id, userID)
 
 	var s model.DriveUploadSession
 	err := row.Scan(&s.ID, &s.UserID, &s.ParentID, &s.Filename, &s.RelativePath, &s.TotalBytes, &s.UploadedBytes,
-		&s.ChunkSize, &s.TotalChunks, &s.LastChunkIndex, &s.MimeType, &s.TempPath, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+		&s.ChunkSize, &s.TotalChunks, &s.LastChunkIndex, &s.UploadedChunks, &s.MimeType, &s.TempPath, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrDriveItemNotFound
@@ -361,6 +365,31 @@ func (r *DriveRepository) GetUploadSession(ctx context.Context, id uuid.UUID, us
 		return nil, err
 	}
 	return &s, nil
+}
+
+func (r *DriveRepository) RecordChunkSuccess(ctx context.Context, id uuid.UUID, userID uuid.UUID, chunkIndex int, chunkSize int64) (int64, error) {
+	var newUploadedBytes int64
+	row := r.pool.QueryRow(ctx, `
+		UPDATE drive_upload_sessions
+		SET uploaded_chunks = CASE 
+				WHEN $1 = ANY(uploaded_chunks) THEN uploaded_chunks 
+				ELSE array_append(uploaded_chunks, $1) 
+			END,
+		    uploaded_bytes = CASE 
+				WHEN $1 = ANY(uploaded_chunks) THEN uploaded_bytes 
+				ELSE uploaded_bytes + $2 
+			END,
+		    last_chunk_index = GREATEST(last_chunk_index, $1),
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = $3 AND user_id = $4
+		RETURNING uploaded_bytes
+	`, chunkIndex, chunkSize, id, userID)
+
+	err := row.Scan(&newUploadedBytes)
+	if err != nil {
+		return 0, err
+	}
+	return newUploadedBytes, nil
 }
 
 func (r *DriveRepository) UpdateUploadSessionProgress(ctx context.Context, id uuid.UUID, userID uuid.UUID, uploadedBytes int64, lastChunkIndex int) error {
@@ -384,7 +413,7 @@ func (r *DriveRepository) SetUploadSessionStatus(ctx context.Context, id uuid.UU
 func (r *DriveRepository) ListActiveUploadSessions(ctx context.Context, userID uuid.UUID) ([]*model.DriveUploadSession, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, user_id, parent_id, filename, relative_path, total_bytes, uploaded_bytes,
-		       chunk_size, total_chunks, last_chunk_index, mime_type, temp_path, status, created_at, updated_at
+		       chunk_size, total_chunks, last_chunk_index, uploaded_chunks, mime_type, temp_path, status, created_at, updated_at
 		FROM drive_upload_sessions
 		WHERE user_id = $1 AND status = 'in_progress' AND updated_at > NOW() - INTERVAL '24 hours'
 		ORDER BY updated_at DESC
@@ -398,7 +427,7 @@ func (r *DriveRepository) ListActiveUploadSessions(ctx context.Context, userID u
 	for rows.Next() {
 		var s model.DriveUploadSession
 		err := rows.Scan(&s.ID, &s.UserID, &s.ParentID, &s.Filename, &s.RelativePath, &s.TotalBytes, &s.UploadedBytes,
-			&s.ChunkSize, &s.TotalChunks, &s.LastChunkIndex, &s.MimeType, &s.TempPath, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+			&s.ChunkSize, &s.TotalChunks, &s.LastChunkIndex, &s.UploadedChunks, &s.MimeType, &s.TempPath, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
