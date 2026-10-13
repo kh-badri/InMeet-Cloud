@@ -159,8 +159,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 {stats.disk_used_percent.toFixed(1)}%
               </span>
             </div>
-            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] px-3.5 py-2 dark:border-[#1E3E62] dark:bg-[#000000]">
-              <span className="text-[10px] font-semibold text-slate-400 block">Jadwal Retensi</span>
+            <div 
+              title="Jadwal pembersihan otomatis berkas backup lama yang sudah kadaluarsa (khusus arsip snapshot backup, berkas InMeet Drive aman dan tidak disentuh)"
+              className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] px-3.5 py-2 dark:border-[#1E3E62] dark:bg-[#000000] cursor-help"
+            >
+              <span className="text-[10px] font-semibold text-slate-400 block">Retensi Backup</span>
               <span className="text-xs font-bold font-mono text-slate-800 dark:text-slate-200">
                 23:30 WIB
               </span>
