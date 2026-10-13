@@ -14,6 +14,7 @@ export const UploadDock: React.FC = () => {
     pauseUpload,
     resumeUpload,
     cancelUpload,
+    cancelAllUploads,
     clearCompleted,
   } = useDriveUpload();
 
@@ -23,6 +24,7 @@ export const UploadDock: React.FC = () => {
 
   const uploadingCount = tasks.filter((t) => t.status === 'uploading').length;
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
+  const activeOrPausedCount = tasks.filter((t) => t.status === 'uploading' || t.status === 'paused' || t.status === 'error').length;
   const totalCount = tasks.length;
 
   const formatEta = (seconds: number) => {
@@ -69,6 +71,16 @@ export const UploadDock: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1">
+          {activeOrPausedCount > 0 && (
+            <button
+              onClick={cancelAllUploads}
+              title="Batalkan semua proses upload"
+              className="rounded-lg px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/40"
+            >
+              Batalkan Semua
+            </button>
+          )}
+
           {completedCount > 0 && (
             <button
               onClick={clearCompleted}
@@ -125,13 +137,23 @@ export const UploadDock: React.FC = () => {
                     )}
 
                     {task.status === 'uploading' && (
-                      <button
-                        onClick={() => pauseUpload(task.id)}
-                        title="Jeda upload"
-                        className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-[#92B4EC]/20 dark:hover:bg-[#1E3E62]"
-                      >
-                        <Pause className="h-3 w-3" />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => pauseUpload(task.id)}
+                          title="Jeda upload"
+                          className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-[#92B4EC]/20 dark:hover:bg-[#1E3E62]"
+                        >
+                          <Pause className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => cancelUpload(task.id)}
+                          title="Batalkan proses upload berkas ini"
+                          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          <span>Batal</span>
+                        </button>
+                      </>
                     )}
 
                     {task.status === 'paused' && (
@@ -140,9 +162,10 @@ export const UploadDock: React.FC = () => {
                           <button
                             onClick={() => resumeUpload(task.id)}
                             title="Lanjutkan upload"
-                            className="flex h-6 w-6 items-center justify-center rounded-md text-[#FF6701] dark:text-[#FF6500] hover:bg-[#92B4EC]/20 dark:hover:bg-[#1E3E62]"
+                            className="flex items-center gap-1 rounded bg-[#FF6701] px-2 py-0.5 text-[9px] font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500]"
                           >
-                            <Play className="h-3 w-3 fill-current" />
+                            <Play className="h-2.5 w-2.5 fill-current text-white" />
+                            <span>Lanjut</span>
                           </button>
                         ) : (
                           <>
@@ -156,23 +179,55 @@ export const UploadDock: React.FC = () => {
                             />
                             <button
                               onClick={() => fileReattachRefs.current.get(task.id)?.click()}
-                              className="rounded bg-[#FF6701] px-1.5 py-0.5 text-[9px] font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500]"
+                              className="rounded bg-[#FF6701] px-2 py-0.5 text-[9px] font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500]"
                               title="Pilih kembali berkas ini untuk melanjutkan dari byte terakhir"
                             >
-                              Lanjutkan
+                              Pilih Berkas
                             </button>
                           </>
                         )}
+                        <button
+                          onClick={() => cancelUpload(task.id)}
+                          title="Batalkan upload berkas ini"
+                          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          <span>Batal</span>
+                        </button>
                       </>
                     )}
 
-                    <button
-                      onClick={() => cancelUpload(task.id)}
-                      title="Batalkan"
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                    {task.status === 'error' && (
+                      <>
+                        {task.file && (
+                          <button
+                            onClick={() => resumeUpload(task.id)}
+                            title="Coba upload lagi"
+                            className="rounded bg-[#FF6701] px-2 py-0.5 text-[9px] font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500]"
+                          >
+                            Coba Lagi
+                          </button>
+                        )}
+                        <button
+                          onClick={() => cancelUpload(task.id)}
+                          title="Batalkan proses upload berkas ini"
+                          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          <span>Batal</span>
+                        </button>
+                      </>
+                    )}
+
+                    {task.status === 'completed' && (
+                      <button
+                        onClick={() => cancelUpload(task.id)}
+                        title="Tutup dari daftar"
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '../lib/api';
+import { apiRequest, getCSRFToken } from '../lib/api';
 import { DriveUploadSession } from '../types';
 import { saveUploadToDB, getAllUploadsFromDB, removeUploadFromDB } from '../lib/uploadDb';
 
@@ -33,6 +33,7 @@ interface DriveUploadContextType {
   pauseUpload: (taskId: string) => void;
   resumeUpload: (taskId: string, reattachedFile?: File) => void;
   cancelUpload: (taskId: string) => void;
+  cancelAllUploads: () => void;
   clearCompleted: () => void;
 }
 
@@ -122,8 +123,15 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             formData.append('chunk_index', String(chunkIdx));
             formData.append('chunk', chunkBlob);
 
+            const csrfToken = getCSRFToken();
+            const headers: Record<string, string> = {};
+            if (csrfToken) {
+              headers['X-CSRF-Token'] = csrfToken;
+            }
+
             const res = await fetch('/api/v1/drive/upload/chunk', {
               method: 'POST',
+              headers,
               body: formData,
               signal: controller.signal,
               credentials: 'include',
@@ -236,19 +244,12 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       }
 
-      // Finalize upload on server
-      const completeRes = await fetch('/api/v1/drive/upload/complete', {
+      // Finalize upload on server via apiRequest (with CSRF token)
+      await apiRequest('/api/v1/drive/upload/complete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ upload_id: task.id }),
         signal: controller.signal,
-        credentials: 'include',
       });
-
-      if (!completeRes.ok) {
-        const errData = await completeRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Gagal menyelesaikan berkas di server');
-      }
 
       setTasks((prev) =>
         prev.map((t) =>
@@ -536,14 +537,29 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (controller) {
       controller.abort();
     }
-    fetch(`/api/v1/drive/upload/sessions/${taskId}`, {
+    // Delete session on backend via apiRequest (includes CSRF token)
+    apiRequest(`/api/v1/drive/upload/sessions/${taskId}`, {
       method: 'DELETE',
-      credentials: 'include',
     }).catch(() => {});
 
     removeUploadFromDB(taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
   }, []);
+
+  const cancelAllUploads = useCallback(() => {
+    tasks.forEach((t) => {
+      pauseFlagsRef.current.set(t.id, true);
+      const controller = abortControllersRef.current.get(t.id);
+      if (controller) {
+        controller.abort();
+      }
+      apiRequest(`/api/v1/drive/upload/sessions/${t.id}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+      removeUploadFromDB(t.id);
+    });
+    setTasks([]);
+  }, [tasks]);
 
   const clearCompleted = useCallback(() => {
     setTasks((prev) => prev.filter((t) => t.status === 'uploading' || t.status === 'paused'));
@@ -560,6 +576,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
         pauseUpload,
         resumeUpload,
         cancelUpload,
+        cancelAllUploads,
         clearCompleted,
       }}
     >

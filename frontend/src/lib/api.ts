@@ -1,6 +1,6 @@
 // API client for BackupVault backend
 
-function getCSRFToken(): string {
+export function getCSRFToken(): string {
   const match = document.cookie.match(/bv_csrf=([^;]+)/);
   return match ? match[1] : '';
 }

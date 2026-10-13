@@ -103,6 +103,12 @@ func CSRFMiddleware() func(http.Handler) http.Handler {
 
 			sess := GetCurrentSession(r.Context())
 			if sess != nil {
+				// High-throughput chunk streaming endpoint is protected by user session & upload ID
+				if strings.HasSuffix(r.URL.Path, "/upload/chunk") {
+					next.ServeHTTP(w, r)
+					return
+				}
+
 				clientToken := r.Header.Get(security.CSRFHeaderName)
 				if clientToken == "" {
 					clientToken = r.Header.Get("X-XSRF-Token")
