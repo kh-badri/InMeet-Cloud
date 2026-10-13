@@ -154,7 +154,7 @@ export const ApplicationsPage: React.FC = () => {
     <div className="space-y-6 pb-16 md:pb-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
+          <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl">
             Aplikasi & API Keys
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -164,7 +164,7 @@ export const ApplicationsPage: React.FC = () => {
 
         <button
           onClick={() => setIsAddAppOpen(true)}
-          className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+          className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all"
         >
           <Plus className="h-4 w-4" /> Tambah Aplikasi
         </button>
@@ -176,7 +176,7 @@ export const ApplicationsPage: React.FC = () => {
           [1, 2, 3].map((i) => (
             <div
               key={i}
-              className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-slate-800 dark:bg-darkSurface space-y-4 animate-pulse flex flex-col justify-between"
+              className="rounded-2xl border border-[#92B4EC]/60 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-4 animate-pulse flex flex-col justify-between"
             >
               <div>
                 <div className="flex justify-between items-start gap-2">
@@ -198,19 +198,19 @@ export const ApplicationsPage: React.FC = () => {
             </div>
           ))
         ) : apps?.length === 0 ? (
-          <div className="col-span-full py-16 text-center text-xs text-slate-400 bg-white dark:bg-darkSurface rounded-2xl border border-slate-200/80 dark:border-slate-800">
+          <div className="col-span-full py-16 text-center text-xs text-slate-400 bg-white dark:bg-[#0B192C] rounded-2xl border border-[#92B4EC]/60 dark:border-[#1E3E62]">
             Belum ada aplikasi yang terdaftar. Klik tombol Tambah Aplikasi di atas untuk memulai.
           </div>
         ) : (
           apps?.map((app) => (
             <div
               key={app.id}
-              className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-darkSurface flex flex-col justify-between gap-5"
+              className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 shadow-2xs hover:shadow-md transition-all dark:border-[#1E3E62] dark:bg-[#0B192C] flex flex-col justify-between gap-5"
             >
               <div className="space-y-3.5">
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 shrink-0 font-bold border border-indigo-100 dark:border-indigo-900/40">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FEA82F]/15 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] shrink-0 font-bold border border-[#FEA82F]/30 dark:border-[#FF6500]/30">
                       <Server className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
@@ -224,11 +224,11 @@ export const ApplicationsPage: React.FC = () => {
                   </div>
 
                   {app.has_today_backup ? (
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/40 shrink-0">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/40 shrink-0">
                       <CheckCircle2 className="h-3 w-3" /> Hari Ini Ada
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/40 shrink-0">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-[#FEA82F]/15 text-[#FF6701] border border-[#FEA82F]/40 dark:bg-[#FEA82F]/10 dark:text-[#FEA82F] dark:border-[#FEA82F]/30 shrink-0">
                       <AlertTriangle className="h-3 w-3" /> Belum Masuk
                     </span>
                   )}
@@ -238,19 +238,19 @@ export const ApplicationsPage: React.FC = () => {
                   {app.description || <span className="italic text-slate-400 dark:text-slate-500">Tidak ada deskripsi</span>}
                 </p>
 
-                <div className="grid grid-cols-2 gap-2 text-xs rounded-xl bg-slate-50 p-3 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/80">
+                <div className="grid grid-cols-2 gap-2 text-xs rounded-xl bg-[#F3F6FD] p-3 dark:bg-[#000000] border border-[#92B4EC]/40 dark:border-[#1E3E62]">
                   <div>
                     <span className="text-slate-400 dark:text-slate-500 block text-[10px] font-medium">Total Backup:</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+                    <span className="font-bold text-slate-800 dark:text-slate-200 block truncate font-mono">
                       {app.total_backups || 0} file
                     </span>
-                    <span className="text-[10px] text-slate-400 block">
+                    <span className="text-[10px] text-slate-400 block font-mono">
                       {formatBytes(app.total_bytes || 0)}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-400 dark:text-slate-500 block text-[10px] font-medium">Aturan Retensi:</span>
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400 block">
+                    <span className="font-bold text-[#FF6701] dark:text-[#FF6500] block font-mono">
                       {app.retention_days} hari
                     </span>
                     <span className="text-[10px] text-slate-400 block">
@@ -261,18 +261,18 @@ export const ApplicationsPage: React.FC = () => {
               </div>
 
               {/* Action Buttons in Equal Grid */}
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 grid grid-cols-2 gap-2">
+              <div className="pt-3 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80 grid grid-cols-2 gap-2">
                 <button
                   onClick={() => handleOpenEdit(app)}
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors shadow-2xs"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors shadow-2xs"
                   title="Ubah Aturan Retensi"
                 >
-                  <Sliders className="h-3.5 w-3.5 text-indigo-500" />
+                  <Sliders className="h-3.5 w-3.5 text-[#FEA82F]" />
                   Ubah Retensi
                 </button>
                 <button
                   onClick={() => setActiveAppKeys(app)}
-                  className="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 shadow-2xs transition-colors"
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-3 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-2xs transition-all"
                 >
                   <KeyRound className="h-3.5 w-3.5" />
                   Kelola API Key
@@ -307,7 +307,7 @@ export const ApplicationsPage: React.FC = () => {
               placeholder="contoh: server-database-utama"
               value={appName}
               onChange={(e) => setAppName(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 font-mono"
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/20 font-mono"
             />
             <p className="mt-1 text-[11px] text-slate-400">
               Gunakan huruf kecil, angka, atau tanda minus (-). Tidak boleh spasi.
@@ -324,7 +324,7 @@ export const ApplicationsPage: React.FC = () => {
               placeholder="Contoh: Database PostgreSQL Utama"
               value={appDisplayName}
               onChange={(e) => setAppDisplayName(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/20"
             />
           </div>
 
@@ -337,12 +337,12 @@ export const ApplicationsPage: React.FC = () => {
               placeholder="Deskripsi singkat server atau aplikasi ini..."
               value={appDescription}
               onChange={(e) => setAppDescription(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 resize-none"
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/20 resize-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3.5 pt-1">
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-3 dark:border-[#1E3E62] dark:bg-[#000000]">
               <label className="block font-semibold text-slate-800 dark:text-slate-200 mb-1 text-xs">
                 Batas Retensi (Hari)
               </label>
@@ -352,13 +352,13 @@ export const ApplicationsPage: React.FC = () => {
                 required
                 value={appRetentionDays}
                 onChange={(e) => setAppRetentionDays(parseInt(e.target.value) || 1)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-indigo-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-indigo-400"
+                className="w-full rounded-lg border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs font-bold text-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-[#FF6500]"
               />
               <p className="mt-1 text-[10px] text-slate-400">
                 Backup &gt; {appRetentionDays} hari dihapus otomatis.
               </p>
             </div>
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-3 dark:border-[#1E3E62] dark:bg-[#000000]">
               <label className="block font-semibold text-slate-800 dark:text-slate-200 mb-1 text-xs">
                 Minimum Keep (File)
               </label>
@@ -368,7 +368,7 @@ export const ApplicationsPage: React.FC = () => {
                 required
                 value={appMinKeep}
                 onChange={(e) => setAppMinKeep(parseInt(e.target.value) || 1)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-lg border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs font-bold text-slate-800 dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-100"
               />
               <p className="mt-1 text-[10px] text-slate-400">
                 File terbaru yang selalu dilindungi.
@@ -376,18 +376,18 @@ export const ApplicationsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+          <div className="flex justify-end gap-2.5 pt-4 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]">
             <button
               type="button"
               onClick={() => setIsAddAppOpen(false)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="rounded-xl border border-[#92B4EC]/80 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={createAppMutation.isPending}
-              className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-semibold text-white hover:bg-indigo-700 shadow-sm transition-colors disabled:opacity-50"
+              className="rounded-xl bg-[#FF6701] px-5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-sm transition-all disabled:opacity-50"
             >
               {createAppMutation.isPending ? 'Menyimpan...' : 'Simpan Aplikasi'}
             </button>
@@ -417,7 +417,7 @@ export const ApplicationsPage: React.FC = () => {
               required
               value={editDisplayName}
               onChange={(e) => setEditDisplayName(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/20"
             />
           </div>
 
@@ -429,12 +429,12 @@ export const ApplicationsPage: React.FC = () => {
               rows={2}
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 resize-none"
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/20 resize-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3.5 pt-1">
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-3 dark:border-[#1E3E62] dark:bg-[#000000]">
               <label className="block font-semibold text-slate-800 dark:text-slate-200 mb-1 text-xs">
                 Batas Retensi (Hari)
               </label>
@@ -444,13 +444,13 @@ export const ApplicationsPage: React.FC = () => {
                 required
                 value={editRetentionDays}
                 onChange={(e) => setEditRetentionDays(parseInt(e.target.value) || 1)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-indigo-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-indigo-400"
+                className="w-full rounded-lg border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs font-bold text-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-[#FF6500]"
               />
               <p className="mt-1 text-[10px] text-slate-400">
                 Backup &gt; {editRetentionDays} hari dibersihkan.
               </p>
             </div>
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-3 dark:border-[#1E3E62] dark:bg-[#000000]">
               <label className="block font-semibold text-slate-800 dark:text-slate-200 mb-1 text-xs">
                 Minimum Keep (File)
               </label>
@@ -460,7 +460,7 @@ export const ApplicationsPage: React.FC = () => {
                 required
                 value={editMinKeep}
                 onChange={(e) => setEditMinKeep(parseInt(e.target.value) || 1)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-lg border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs font-bold text-slate-800 dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-100"
               />
               <p className="mt-1 text-[10px] text-slate-400">
                 File terbaru selalu dilindungi.
@@ -468,26 +468,26 @@ export const ApplicationsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/70 p-3.5 dark:border-indigo-900/50 dark:bg-indigo-950/30 text-indigo-950 dark:text-indigo-200 leading-relaxed">
-            <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5 mb-1 text-xs">
-              <Clock className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+          <div className="rounded-xl border border-[#FEA82F]/40 bg-[#FEA82F]/10 p-3.5 text-slate-800 dark:border-[#FF6500]/40 dark:bg-[#000000] dark:text-slate-200 leading-relaxed">
+            <span className="font-bold text-[#FF6701] dark:text-[#FF6500] flex items-center gap-1.5 mb-1 text-xs">
+              <Clock className="h-3.5 w-3.5" />
               Info Pembersihan Otomatis
             </span>
             Sistem cron berjalan otomatis setiap hari pada 23:30 WIB. File backup yang usianya melebihi {editRetentionDays} hari akan masuk masa karantina 7 hari sebelum dihapus permanen dari penyimpanan.
           </div>
 
-          <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+          <div className="flex justify-end gap-2.5 pt-4 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]">
             <button
               type="button"
               onClick={() => setEditingApp(null)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="rounded-xl border border-[#92B4EC]/80 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={updateAppMutation.isPending}
-              className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-semibold text-white hover:bg-indigo-700 shadow-sm transition-colors disabled:opacity-50"
+              className="rounded-xl bg-[#FF6701] px-5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-sm transition-all disabled:opacity-50"
             >
               {updateAppMutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
             </button>
@@ -506,14 +506,14 @@ export const ApplicationsPage: React.FC = () => {
         maxWidth="max-w-2xl"
       >
         <div className="space-y-4 text-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3.5 border-b border-[#92B4EC]/40 dark:border-[#1E3E62]">
             <span className="text-slate-500 dark:text-slate-400">
               API key hanya berhak upload file backup (scope: <strong className="font-semibold text-slate-800 dark:text-slate-200">upload-only</strong>).
             </span>
             {!isCreateKeyOpen && (
               <button
                 onClick={() => setIsCreateKeyOpen(true)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 shrink-0 shadow-2xs"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all shrink-0 shadow-2xs"
               >
                 <Plus className="h-4 w-4" /> Buat Key Baru
               </button>
@@ -522,10 +522,10 @@ export const ApplicationsPage: React.FC = () => {
 
           {/* Form Buat Key Baru */}
           {isCreateKeyOpen && (
-            <div className="rounded-xl border border-indigo-200/90 bg-indigo-50/50 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30 space-y-3.5 animate-slide-down">
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-3.5 animate-slide-down">
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
-                  <KeyRound className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <KeyRound className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
                   Buat API Key Baru
                 </h4>
                 <button
@@ -546,7 +546,7 @@ export const ApplicationsPage: React.FC = () => {
                   value={keyName}
                   onChange={(e) => setKeyName(e.target.value)}
                   placeholder="Contoh: Server DB Production Utama"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-100 dark:focus:border-[#FF6500]"
                 />
               </div>
 
@@ -559,7 +559,7 @@ export const ApplicationsPage: React.FC = () => {
                   value={keyIPAllowlist}
                   onChange={(e) => setKeyIPAllowlist(e.target.value)}
                   placeholder="Contoh: 103.12.4.5, 10.0.0.0/16 (kosongkan jika dari IP mana saja)"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 font-mono"
+                  className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-100 dark:focus:border-[#FF6500] font-mono"
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
                   Bisa berupa IP tunggal atau format CIDR, dipisahkan tanda koma.
@@ -570,7 +570,7 @@ export const ApplicationsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsCreateKeyOpen(false)}
-                  className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                  className="rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-300 dark:hover:bg-[#1E3E62] transition-colors"
                 >
                   Batal
                 </button>
@@ -578,7 +578,7 @@ export const ApplicationsPage: React.FC = () => {
                   type="button"
                   onClick={() => createKeyMutation.mutate()}
                   disabled={createKeyMutation.isPending || !keyName.trim()}
-                  className="rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 shadow-2xs transition-colors disabled:opacity-50"
+                  className="rounded-xl bg-[#FF6701] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-2xs transition-all disabled:opacity-50"
                 >
                   {createKeyMutation.isPending ? 'Membuat...' : 'Generate 256-bit Key'}
                 </button>
@@ -589,21 +589,21 @@ export const ApplicationsPage: React.FC = () => {
           {/* List existing keys */}
           <div className="space-y-2.5 mt-3">
             {(!keys || keys.length === 0) ? (
-              <div className="py-8 text-center text-xs text-slate-400 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-                Belum ada API Key untuk aplikasi ini. Klik tombol <span className="font-semibold text-indigo-600 dark:text-indigo-400">Buat Key Baru</span> di atas.
+              <div className="py-8 text-center text-xs text-slate-400 rounded-xl border border-dashed border-[#92B4EC]/50 dark:border-[#1E3E62]">
+                Belum ada API Key untuk aplikasi ini. Klik tombol <span className="font-semibold text-[#FF6701] dark:text-[#FF6500]">Buat Key Baru</span> di atas.
               </div>
             ) : (
               keys.map((k) => (
                 <div
                   key={k.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-slate-200/90 bg-white p-3.5 dark:border-slate-800 dark:bg-darkSurface shadow-2xs"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-[#92B4EC]/60 bg-white p-3.5 dark:border-[#1E3E62] dark:bg-[#000000] shadow-2xs"
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate">
                         {k.name}
                       </span>
-                      <span className="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700/80 font-medium">
+                      <span className="font-mono text-[11px] bg-[#F3F6FD] dark:bg-[#0B192C] text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md border border-[#92B4EC]/50 dark:border-[#1E3E62] font-semibold">
                         {k.key_prefix}...
                       </span>
                       {k.revoked_at ? (
@@ -620,7 +620,7 @@ export const ApplicationsPage: React.FC = () => {
                       <span>Dibuat: {formatDate(k.created_at)}</span>
                       {k.last_used_at && <span>Terakhir dipakai: {formatDate(k.last_used_at)}</span>}
                       {k.ip_allowlist && (
-                        <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-mono">
+                        <span className="flex items-center gap-1 text-[#FF6701] dark:text-[#FF6500] font-mono">
                           <Globe className="h-3 w-3" /> {k.ip_allowlist}
                         </span>
                       )}
@@ -656,9 +656,9 @@ export const ApplicationsPage: React.FC = () => {
         maxWidth="max-w-lg"
       >
         <div className="space-y-4 text-xs">
-          <div className="rounded-xl border border-amber-300/80 bg-amber-50/80 p-3.5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-            <p className="font-bold flex items-center gap-1.5 text-xs text-amber-800 dark:text-amber-300">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="rounded-xl border border-[#FEA82F] bg-[#FEA82F]/15 p-3.5 text-slate-800 dark:border-[#FF6500]/50 dark:bg-[#FF6500]/10 dark:text-slate-200">
+            <p className="font-bold flex items-center gap-1.5 text-xs text-[#FF6701] dark:text-[#FF6500]">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
               PENTING: Kunci ini hanya ditampilkan sekali!
             </p>
             <p className="mt-1 text-[11px] leading-relaxed">
@@ -670,11 +670,11 @@ export const ApplicationsPage: React.FC = () => {
             <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1.5">
               API Key 256-Bit Anda:
             </label>
-            <div className="flex items-center justify-between rounded-xl bg-slate-900 p-3 font-mono text-emerald-400 text-xs border border-slate-800 shadow-inner gap-2">
+            <div className="flex items-center justify-between rounded-xl bg-black p-3 font-mono text-[#FF6500] text-xs border border-[#1E3E62] shadow-inner gap-2">
               <span className="break-all select-all font-mono leading-relaxed">{createdRawKey}</span>
               <button
                 onClick={() => copyToClipboard(createdRawKey || '')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-sans text-xs transition-colors"
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0B192C] hover:bg-[#1E3E62] text-white font-sans text-xs transition-colors border border-[#1E3E62]"
                 title="Salin Key"
               >
                 {copiedKey ? (
@@ -692,10 +692,10 @@ export const ApplicationsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="pt-3.5 border-t border-slate-100 dark:border-slate-800/80 flex justify-end">
+          <div className="pt-3.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62] flex justify-end">
             <button
               onClick={() => setCreatedRawKey(null)}
-              className="rounded-xl bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-700 shadow-sm transition-colors"
+              className="rounded-xl bg-[#FF6701] px-5 py-2.5 font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-sm transition-all"
             >
               Saya Sudah Menyimpan Key
             </button>

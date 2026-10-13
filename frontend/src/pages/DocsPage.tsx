@@ -103,8 +103,8 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl flex items-center gap-2">
-            <BookOpen className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+          <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl flex items-center gap-2">
+            <BookOpen className="h-6 w-6 text-[#FF6701] dark:text-[#FF6500]" />
             Dokumentasi & Integrasi API
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -114,7 +114,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
         <button
           onClick={() => copyText('agent-prompt-header', aiAgentPrompt)}
-          className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition-colors shrink-0"
+          className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all shrink-0"
         >
           {copiedSection === 'agent-prompt-header' ? (
             <>
@@ -131,39 +131,39 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
       </div>
 
       {/* Quick Info Banner */}
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-4.5 dark:border-slate-800 dark:bg-darkSurface shadow-2xs">
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-4.5 dark:border-[#1E3E62] dark:bg-[#0B192C] shadow-2xs">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 font-bold shrink-0">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#92B4EC]/20 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] font-bold shrink-0 border border-[#92B4EC]/40 dark:border-[#1E3E62]">
               <Terminal className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block">Base URL API</span>
-              <code className="text-xs font-mono font-semibold text-indigo-600 dark:text-indigo-400 block truncate">
+              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-400 block">Base URL API</span>
+              <code className="text-xs font-mono font-bold text-[#FF6701] dark:text-[#FF6500] block truncate">
                 {baseUrl}
               </code>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 font-bold shrink-0">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 font-bold shrink-0 border border-emerald-200/60 dark:border-emerald-900/40">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block">Autentikasi & Keamanan</span>
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block truncate">
-                Bearer 256-bit + AES-GCM
+              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-400 block">Autentikasi & Keamanan</span>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
+                Bearer 256-bit + AES-256-GCM
               </span>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 font-bold shrink-0">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#FEA82F]/15 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FEA82F] font-bold shrink-0 border border-[#FEA82F]/30 dark:border-[#FEA82F]/30">
               <Layers className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 block">Metode Pengiriman</span>
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block truncate">
+              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-400 block">Metode Pengiriman</span>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
                 Direct Stream & Resumable (10GB)
               </span>
             </div>
@@ -172,13 +172,13 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
       </div>
 
       {/* Sub Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200/80 dark:border-slate-800">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-[#92B4EC]/40 dark:border-[#1E3E62]">
         <button
           onClick={() => setActiveSubTab('agent')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shrink-0 ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'agent'
-              ? 'bg-indigo-600 text-white shadow-2xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
           <Sparkles className="h-3.5 w-3.5" />
@@ -187,10 +187,10 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
         <button
           onClick={() => setActiveSubTab('quickstart')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shrink-0 ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'quickstart'
-              ? 'bg-indigo-600 text-white shadow-2xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -199,10 +199,10 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
         <button
           onClick={() => setActiveSubTab('direct')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shrink-0 ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'direct'
-              ? 'bg-indigo-600 text-white shadow-2xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
           <Terminal className="h-3.5 w-3.5" />
@@ -211,10 +211,10 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
         <button
           onClick={() => setActiveSubTab('chunked')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shrink-0 ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'chunked'
-              ? 'bg-indigo-600 text-white shadow-2xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
           <Layers className="h-3.5 w-3.5" />
@@ -223,25 +223,25 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
         <button
           onClick={() => setActiveSubTab('examples')}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shrink-0 ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'examples'
-              ? 'bg-indigo-600 text-white shadow-2xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
           <Code2 className="h-3.5 w-3.5" />
-          Contoh Kode Aplikasi
+          Contoh Kode Aplikasi (CI4 / Node / Python)
         </button>
       </div>
 
       {/* Tab 1: AI Agent Prompt Box */}
       {activeSubTab === 'agent' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-indigo-200/90 bg-indigo-50/50 p-4 sm:p-5 dark:border-indigo-900/60 dark:bg-indigo-950/30 space-y-3">
+          <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-4 sm:p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
                   Format Acuan untuk AI Coding Assistant
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -251,7 +251,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
               <button
                 onClick={() => copyText('agent-prompt-box', aiAgentPrompt)}
-                className="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-indigo-700 transition-colors shrink-0"
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all shrink-0"
               >
                 {copiedSection === 'agent-prompt-box' ? (
                   <>
@@ -267,8 +267,8 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
               </button>
             </div>
 
-            <div className="relative rounded-xl bg-slate-950 p-4 border border-slate-800 font-mono text-[11px] leading-relaxed text-slate-200 overflow-x-auto max-h-[500px]">
-              <pre className="whitespace-pre-wrap selection:bg-indigo-500 selection:text-white">
+            <div className="relative rounded-xl bg-black p-4 border border-[#1E3E62] font-mono text-[11px] leading-relaxed text-slate-200 overflow-x-auto max-h-[500px]">
+              <pre className="whitespace-pre-wrap selection:bg-[#FF6500] selection:text-white">
                 {aiAgentPrompt}
               </pre>
             </div>
@@ -279,14 +279,14 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
       {/* Tab 2: Quickstart & Prerequisites */}
       {activeSubTab === 'quickstart' && (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-darkSurface space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+          <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               3 Langkah Mudah Menghubungkan Aplikasi
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs">
+              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-black font-bold text-xs">
                   1
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">Daftarkan Aplikasi</h4>
@@ -295,8 +295,8 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs">
+              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-black font-bold text-xs">
                   2
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">Generate API Key</h4>
@@ -305,8 +305,8 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs">
+              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-black font-bold text-xs">
                   3
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">Pasang di Aplikasi</h4>
@@ -319,8 +319,8 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
           {/* Retention & Security Policy */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-darkSurface space-y-3">
-              <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-2">
+            <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-3">
+              <h4 className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-emerald-500" />
                 Standar Keamanan InMeet Cloud
               </h4>
@@ -331,9 +331,9 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
               </ul>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-darkSurface space-y-3">
-              <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 text-indigo-500" />
+            <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-3">
+              <h4 className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
                 Aturan Retensi Fleksibel
               </h4>
               <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-2 list-disc list-inside leading-relaxed">
@@ -349,10 +349,10 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
       {/* Tab 3: Direct Upload (PUT) */}
       {activeSubTab === 'direct' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-darkSurface space-y-4">
+          <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <span className="rounded-md bg-emerald-600 px-2 py-0.5 font-mono text-[11px] font-bold text-white">PUT</span>
                   <code>/api/v1/upload</code>
                 </h3>
@@ -375,7 +375,7 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
   -H "X-Filename: $FILE" \\
   -H "X-Checksum-SHA256: $SHA256" \\
   --data-binary "@$FILE"`)}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
               >
                 {copiedSection === 'direct-curl' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                 <span>Salin Script Bash</span>
@@ -383,28 +383,28 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
             </div>
 
             {/* Header table */}
-            <div className="rounded-xl border border-slate-200/80 overflow-hidden dark:border-slate-800">
+            <div className="rounded-xl border border-[#92B4EC]/60 overflow-hidden dark:border-[#1E3E62]">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 font-semibold border-b border-slate-200/80 dark:border-slate-800">
+                <thead className="bg-[#F3F6FD] dark:bg-[#000000] text-slate-500 font-semibold border-b border-[#92B4EC]/40 dark:border-[#1E3E62]">
                   <tr>
                     <th className="p-3">Header Request</th>
                     <th className="p-3">Tipe</th>
                     <th className="p-3">Keterangan</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                <tbody className="divide-y divide-[#92B4EC]/30 dark:divide-[#1E3E62]/80 text-slate-700 dark:text-slate-300">
                   <tr>
-                    <td className="p-3 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">Authorization</td>
+                    <td className="p-3 font-mono text-[11px] text-[#FF6701] dark:text-[#FF6500] font-bold">Authorization</td>
                     <td className="p-3 text-[11px] text-slate-400">Wajib</td>
                     <td className="p-3"><code>Bearer &lt;API_KEY_256_BIT&gt;</code></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">X-Filename</td>
+                    <td className="p-3 font-mono text-[11px] text-[#FF6701] dark:text-[#FF6500] font-bold">X-Filename</td>
                     <td className="p-3 text-[11px] text-slate-400">Wajib</td>
                     <td className="p-3">Nama berkas yang akan disimpan, misal: <code>production_db_20261013.sql.gz</code></td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">X-Checksum-SHA256</td>
+                    <td className="p-3 font-mono text-[11px] text-[#FF6701] dark:text-[#FF6500] font-bold">X-Checksum-SHA256</td>
                     <td className="p-3 text-[11px] text-slate-400">Wajib</td>
                     <td className="p-3">Hash SHA-256 (64 hex lowercase) dari isi berkas untuk verifikasi integritas</td>
                   </tr>
@@ -413,9 +413,9 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
             </div>
 
             {/* Code Snippet */}
-            <div className="rounded-xl bg-slate-950 p-4 border border-slate-800 font-mono text-[11px] text-slate-200 space-y-2">
+            <div className="rounded-xl bg-black p-4 border border-[#1E3E62] font-mono text-[11px] text-slate-200 space-y-2">
               <span className="text-slate-400 text-[10px] block font-sans font-semibold">Contoh Perintah cURL:</span>
-              <pre className="overflow-x-auto selection:bg-indigo-500 selection:text-white">
+              <pre className="overflow-x-auto selection:bg-[#FF6500] selection:text-white">
 {`curl -X PUT "${baseUrl}/api/v1/upload" \\
   -H "Authorization: Bearer YOUR_API_KEY_HERE" \\
   -H "X-Filename: backup_database_20261013.sql.gz" \\
@@ -429,7 +429,7 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
               <span className="text-slate-600 dark:text-slate-400 text-xs font-semibold block">
                 Contoh Respons Berhasil (HTTP 201 Created):
               </span>
-              <div className="rounded-xl bg-slate-900 p-4 font-mono text-[11px] text-emerald-400 overflow-x-auto border border-slate-800">
+              <div className="rounded-xl bg-black p-4 font-mono text-[11px] text-emerald-400 overflow-x-auto border border-[#1E3E62]">
                 <pre>{`{
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "app_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -448,10 +448,10 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
       {/* Tab 4: Resumable Chunked (10GB) */}
       {activeSubTab === 'chunked' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-darkSurface space-y-4">
+          <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Layers className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Layers className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
                 Resumable Chunked Upload Protocol (Tus-Compatible)
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -461,15 +461,15 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
 
             {/* 4 Step Workflow */}
             <div className="space-y-3 pt-2">
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-2">
+              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-bold text-white">LANGKAH 1</span>
+                  <span className="rounded-md bg-[#FF6701] dark:bg-[#FF6500] px-2 py-0.5 text-[10px] font-bold text-white dark:text-black">LANGKAH 1</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Inisiasi Sesi Upload</span>
                 </div>
-                <code className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 block">
+                <code className="text-[11px] font-mono text-[#FF6701] dark:text-[#FF6500] block">
                   POST {baseUrl}/api/v1/uploads
                 </code>
-                <div className="rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-slate-300">
+                <div className="rounded-lg bg-black p-3 font-mono text-[11px] text-slate-300 border border-[#1E3E62]">
                   <pre>{`// Request Body (JSON)
 {
   "filename": "database_production_10gb.dump.gz",
@@ -487,12 +487,12 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-2">
+              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-bold text-white">LANGKAH 2</span>
+                  <span className="rounded-md bg-[#FF6701] dark:bg-[#FF6500] px-2 py-0.5 text-[10px] font-bold text-white dark:text-black">LANGKAH 2</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Kirim Pecahan File (Chunk Streaming)</span>
                 </div>
-                <code className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 block">
+                <code className="text-[11px] font-mono text-[#FF6701] dark:text-[#FF6500] block">
                   PATCH {baseUrl}/api/v1/uploads/&#123;upload_id&#125;
                 </code>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -500,12 +500,12 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-2">
+              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">LANGKAH 3</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Finalisasi & Verifikasi Integritas</span>
                 </div>
-                <code className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 block">
+                <code className="text-[11px] font-mono text-[#FF6701] dark:text-[#FF6500] block">
                   POST {baseUrl}/api/v1/uploads/&#123;upload_id&#125;/complete
                 </code>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -520,14 +520,98 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
       {/* Tab 5: Code Examples */}
       {activeSubTab === 'examples' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-darkSurface space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Code2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              Contoh Implementasi di Berbagai Bahasa Pemrograman
+          <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Code2 className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+              Contoh Implementasi di Berbagai Bahasa & Framework
             </h3>
 
-            {/* Node.js / TypeScript */}
+            {/* CodeIgniter 4 (PHP) */}
             <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-[#FEA82F]/20 text-[#FF6701] font-mono text-[10px]">PHP</span>
+                  CodeIgniter 4 (Spark Command / Cron)
+                </span>
+                <button
+                  onClick={() => copyText('code-ci4', `<?php
+namespace App\\Commands;
+
+use CodeIgniter\\CLI\\BaseCommand;
+use CodeIgniter\\CLI\\CLI;
+
+class BackupToCloud extends BaseCommand
+{
+    protected $group = 'Backup';
+    protected $name = 'backup:cloud';
+    protected $description = 'Kirim backup MySQL ke InMeet Cloud';
+
+    public function run(array $params)
+    {
+        $db = config('Database')->default;
+        $timestamp = date('Ymd_His');
+        $filename = "billing_{$timestamp}.sql.gz";
+        $tempPath = WRITEPATH . "backups/{$filename}";
+
+        if (!is_dir(WRITEPATH . 'backups')) mkdir(WRITEPATH . 'backups', 0755, true);
+
+        $pass = !empty($db['password']) ? "-p\"{$db['password']}\"" : "";
+        exec("mysqldump -h {$db['hostname']} -u {$db['username']} {$pass} {$db['database']} | gzip -9 > \"{$tempPath}\"");
+
+        $sha256 = hash_file('sha256', $tempPath);
+        $ch = curl_init('${baseUrl}/api/v1/upload');
+        $fh = fopen($tempPath, 'rb');
+
+        curl_setopt_array($ch, [
+            CURLOPT_PUT => true,
+            CURLOPT_INFILE => $fh,
+            CURLOPT_INFILESIZE => filesize($tempPath),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                "Authorization: Bearer " . env('INMEET_API_KEY'),
+                "X-Filename: {$filename}",
+                "X-Checksum-SHA256: {$sha256}",
+                "Content-Type: application/octet-stream"
+            ]
+        ]);
+
+        $res = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        fclose($fh); curl_close($ch); @unlink($tempPath);
+
+        CLI::write("Status: " . ($code === 201 ? "Berhasil di-upload!" : "Gagal: {$res}"));
+    }
+}`)}
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#FF6701] hover:underline dark:text-[#FF6500]"
+                >
+                  {copiedSection === 'code-ci4' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  <span>Salin CodeIgniter 4</span>
+                </button>
+              </div>
+              <div className="rounded-xl bg-black p-4 border border-[#1E3E62] font-mono text-[11px] text-slate-200 overflow-x-auto">
+                <pre>{`// app/Commands/BackupToCloud.php
+$dumpCmd = "mysqldump -u {$user} -p{$pass} {$dbname} | gzip -9 > {$tempPath}";
+exec($dumpCmd);
+
+$sha256 = hash_file('sha256', $tempPath);
+$ch = curl_init('${baseUrl}/api/v1/upload');
+curl_setopt_array($ch, [
+    CURLOPT_PUT => true,
+    CURLOPT_INFILE => fopen($tempPath, 'rb'),
+    CURLOPT_INFILESIZE => filesize($tempPath),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        "Authorization: Bearer " . env('INMEET_API_KEY'),
+        "X-Filename: billing_backup.sql.gz",
+        "X-Checksum-SHA256: {$sha256}"
+    ]
+]);
+$response = curl_exec($ch);`}</pre>
+              </div>
+            </div>
+
+            {/* Node.js / TypeScript */}
+            <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
                   Node.js / TypeScript (Streaming Upload)
@@ -535,16 +619,13 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
                 <button
                   onClick={() => copyText('code-node', `import fs from 'fs';
 import crypto from 'crypto';
-import http from 'http'; // or axios/got
 
-async function uploadToInMeet(filePath: string, apiKey: string) {
-  // 1. Hitung SHA-256
+async function uploadBackup(filePath: string, apiKey: string) {
   const fileBuffer = fs.readFileSync(filePath);
   const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
   const filename = filePath.split('/').pop() || 'backup.dump';
 
-  // 2. Stream upload via fetch (Node 18+)
-  const response = await fetch('${baseUrl}/api/v1/upload', {
+  const res = await fetch('${baseUrl}/api/v1/upload', {
     method: 'PUT',
     headers: {
       'Authorization': \`Bearer \${apiKey}\`,
@@ -556,30 +637,23 @@ async function uploadToInMeet(filePath: string, apiKey: string) {
     duplex: 'half' as any,
   });
 
-  if (!response.ok) {
-    throw new Error(\`Upload failed: \${response.status} \${await response.text()}\`);
-  }
-
-  const result = await response.json();
-  console.log('Backup berhasil disimpan:', result);
+  return await res.json();
 }`)}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#FF6701] hover:underline dark:text-[#FF6500]"
                 >
                   {copiedSection === 'code-node' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   <span>Salin Node.js</span>
                 </button>
               </div>
-              <div className="rounded-xl bg-slate-950 p-4 border border-slate-800 font-mono text-[11px] text-slate-200 overflow-x-auto">
+              <div className="rounded-xl bg-black p-4 border border-[#1E3E62] font-mono text-[11px] text-slate-200 overflow-x-auto">
                 <pre>{`import fs from 'fs';
 import crypto from 'crypto';
 
 async function uploadBackup(filePath: string, apiKey: string) {
-  // Hitung hash SHA-256
   const fileBuffer = fs.readFileSync(filePath);
   const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
   const filename = filePath.split('/').pop() || 'backup.sql.gz';
 
-  // Stream upload langsung ke InMeet Cloud
   const res = await fetch('${baseUrl}/api/v1/upload', {
     method: 'PUT',
     headers: {
@@ -603,38 +677,32 @@ async function uploadBackup(filePath: string, apiKey: string) {
                   Python (Requests Streaming)
                 </span>
                 <button
-                  onClick={() => copyText('code-python', `import hashlib
-import requests
+                  onClick={() => copyText('code-python', `import hashlib, requests
 
 def upload_backup(file_path: str, api_key: str):
-    # Hitung SHA-256
     sha256 = hashlib.sha256()
     with open(file_path, "rb") as f:
-        while chunk := f.read(65536):
+        for chunk in iter(lambda: f.read(65536), b""):
             sha256.update(chunk)
-    checksum = sha256.hexdigest()
-
-    # Stream upload
+            
     headers = {
         "Authorization": f"Bearer {api_key}",
         "X-Filename": file_path.split("/")[-1],
-        "X-Checksum-SHA256": checksum,
+        "X-Checksum-SHA256": sha256.hexdigest(),
     }
     with open(file_path, "rb") as f:
-        r = requests.put("${baseUrl}/api/v1/upload", headers=headers, data=f)
-        r.raise_for_status()
-        return r.json()`)}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+        res = requests.put("${baseUrl}/api/v1/upload", headers=headers, data=f)
+        return res.json()`)}
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#FF6701] hover:underline dark:text-[#FF6500]"
                 >
                   {copiedSection === 'code-python' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   <span>Salin Python</span>
                 </button>
               </div>
-              <div className="rounded-xl bg-slate-950 p-4 border border-slate-800 font-mono text-[11px] text-slate-200 overflow-x-auto">
+              <div className="rounded-xl bg-black p-4 border border-[#1E3E62] font-mono text-[11px] text-slate-200 overflow-x-auto">
                 <pre>{`import hashlib, requests
 
 def upload_backup(file_path: str, api_key: str):
-    # Hitung SHA-256
     sha256 = hashlib.sha256()
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):

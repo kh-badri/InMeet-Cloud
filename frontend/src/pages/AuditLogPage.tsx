@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest, formatDate } from '../lib/api';
 import { AuditLog } from '../types';
-import { Globe, User, Terminal } from 'lucide-react';
+import { Globe, User, Terminal, Shield } from 'lucide-react';
 
 export const AuditLogPage: React.FC = () => {
   const [actionFilter, setActionFilter] = useState('');
@@ -23,21 +23,27 @@ export const AuditLogPage: React.FC = () => {
   return (
     <div className="space-y-6 pb-16 md:pb-6">
       <div>
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
-          Audit Log Keamanan
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl">
+            Audit Log Keamanan
+          </h2>
+          <span className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold bg-[#FEA82F]/15 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] border border-[#FEA82F]/30 dark:border-[#FF6500]/30">
+            <Shield className="h-3 w-3" />
+            APPEND-ONLY
+          </span>
+        </div>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Catatan append-only yang tidak dapat diubah untuk semua aktivitas sensitif sistem
+          Catatan mutlak yang tidak dapat diubah untuk seluruh aktivitas autentikasi, API, dan pengelolaan data
         </p>
       </div>
 
       {/* Filter Bar */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-3">
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-4 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="w-full rounded-xl border border-[#92B4EC]/80 bg-[#F3F6FD] px-3 py-2 text-xs text-slate-900 focus:border-[#FF6701] focus:bg-white focus:outline-none dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
           >
             <option value="">Semua Aksi</option>
             <option value="login_success">login_success</option>
@@ -56,7 +62,7 @@ export const AuditLogPage: React.FC = () => {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="w-full rounded-xl border border-[#92B4EC]/80 bg-[#F3F6FD] px-3 py-2 text-xs text-slate-900 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100"
             title="Dari Tanggal"
           />
 
@@ -64,7 +70,7 @@ export const AuditLogPage: React.FC = () => {
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="w-full rounded-xl border border-[#92B4EC]/80 bg-[#F3F6FD] px-3 py-2 text-xs text-slate-900 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100"
             title="Sampai Tanggal"
           />
         </div>
@@ -76,7 +82,7 @@ export const AuditLogPage: React.FC = () => {
           [1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-darkSurface space-y-2 text-xs animate-pulse"
+              className="rounded-2xl border border-[#92B4EC]/60 bg-white p-4 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-2 text-xs animate-pulse"
             >
               <div className="flex justify-between items-center">
                 <div className="h-4 w-28 rounded bg-slate-200 dark:bg-slate-800" />
@@ -95,25 +101,25 @@ export const AuditLogPage: React.FC = () => {
           data?.logs?.map((l) => (
             <div
               key={l.id}
-              className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-2 text-xs"
+              className="rounded-2xl border border-[#92B4EC]/70 bg-white p-4 shadow-2xs dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-2 text-xs"
             >
               <div className="flex items-center justify-between">
-                <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                <span className="inline-flex rounded-md bg-[#F3F6FD] px-2 py-0.5 font-mono text-[11px] font-bold text-[#FF6701] border border-[#92B4EC]/50 dark:bg-[#000000] dark:text-[#FF6500] dark:border-[#1E3E62]">
                   {l.action}
                 </span>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-[11px] text-slate-400 font-mono">
                   {formatDate(l.created_at)}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                 {l.actor_type === 'api_key' ? (
-                  <Terminal className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <Terminal className="h-3.5 w-3.5 text-[#FEA82F] shrink-0" />
                 ) : (
-                  <User className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                  <User className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500] shrink-0" />
                 )}
-                <span className="font-medium truncate">{l.actor_email || l.actor_id}</span>
+                <span className="font-semibold truncate">{l.actor_email || l.actor_id}</span>
               </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800/80 font-mono">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80 font-mono">
                 <span className="flex items-center gap-1">
                   <Globe className="h-3 w-3" /> {l.ip_address}
                 </span>
@@ -125,20 +131,20 @@ export const AuditLogPage: React.FC = () => {
       </div>
 
       {/* Desktop Table view */}
-      <div className="hidden md:block rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-darkSurface">
+      <div className="hidden md:block rounded-2xl border border-[#92B4EC]/70 bg-white shadow-sm overflow-hidden dark:border-[#1E3E62] dark:bg-[#0B192C]">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider dark:bg-slate-900/60 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+            <thead className="bg-[#F3F6FD] text-slate-500 uppercase tracking-wider dark:bg-[#000000] dark:text-slate-400 border-b border-[#92B4EC]/40 dark:border-[#1E3E62]">
               <tr>
                 <th className="px-4 py-3.5 font-semibold">Waktu</th>
                 <th className="px-4 py-3.5 font-semibold">Aktor</th>
                 <th className="px-4 py-3.5 font-semibold">Aksi</th>
                 <th className="px-4 py-3.5 font-semibold">Target</th>
-                <th className="px-4 py-3.5 font-semibold">IP & UA</th>
-                <th className="px-4 py-3.5 font-semibold">Detail</th>
+                <th className="px-4 py-3.5 font-semibold">IP Address</th>
+                <th className="px-4 py-3.5 font-semibold">Detail Parameter</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+            <tbody className="divide-y divide-[#92B4EC]/30 dark:divide-[#1E3E62]/80">
               {isLoading ? (
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className="animate-pulse">
@@ -158,29 +164,29 @@ export const AuditLogPage: React.FC = () => {
                 </tr>
               ) : (
                 data?.logs?.map((l) => (
-                  <tr key={l.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  <tr key={l.id} className="hover:bg-[#F3F6FD] dark:hover:bg-[#1E3E62]/30 transition-colors">
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono text-[11px]">
                       {formatDate(l.created_at)}
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">
                       <div className="flex items-center gap-1.5">
                         {l.actor_type === 'api_key' ? (
-                          <Terminal className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
+                          <Terminal className="h-3.5 w-3.5 text-[#FEA82F] shrink-0" />
                         ) : (
-                          <User className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                          <User className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500] shrink-0" />
                         )}
-                        <span className="truncate max-w-[140px]">{l.actor_email || l.actor_id}</span>
+                        <span className="truncate max-w-[140px] font-semibold">{l.actor_email || l.actor_id}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      <span className="inline-flex rounded-md bg-[#F3F6FD] px-2 py-0.5 font-mono text-[11px] font-bold text-[#FF6701] border border-[#92B4EC]/50 dark:bg-[#000000] dark:text-[#FF6500] dark:border-[#1E3E62]">
                         {l.action}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-[11px]">
                       {l.target_type && `${l.target_type}`}
                     </td>
-                    <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">
+                    <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400 text-[11px]">
                       <span className="flex items-center gap-1">
                         <Globe className="h-3 w-3" /> {l.ip_address}
                       </span>

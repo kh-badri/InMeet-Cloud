@@ -112,7 +112,7 @@ export const BackupsPage: React.FC = () => {
     <div className="space-y-6 pb-16 md:pb-6">
       {/* Page Title */}
       <div>
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
+        <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl">
           Daftar File Backup
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -121,7 +121,7 @@ export const BackupsPage: React.FC = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-3">
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-4 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {/* Search Debounce */}
           <div className="relative">
@@ -131,7 +131,7 @@ export const BackupsPage: React.FC = () => {
               placeholder="Cari file atau aplikasi..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-[#F3F6FD] pl-10 pr-4 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
             />
           </div>
 
@@ -139,7 +139,7 @@ export const BackupsPage: React.FC = () => {
           <select
             value={selectedApp}
             onChange={(e) => setSelectedApp(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="w-full rounded-xl border border-[#92B4EC]/80 bg-[#F3F6FD] px-3 py-2 text-xs text-slate-900 focus:border-[#FF6701] focus:bg-white focus:outline-none dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
           >
             <option value="">Semua Aplikasi</option>
             {apps?.map((a) => (
@@ -153,7 +153,7 @@ export const BackupsPage: React.FC = () => {
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="w-full rounded-xl border border-[#92B4EC]/80 bg-[#F3F6FD] px-3 py-2 text-xs text-slate-900 focus:border-[#FF6701] focus:bg-white focus:outline-none dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
           >
             <option value="">Semua Status</option>
             <option value="verified">Verified</option>
@@ -167,7 +167,7 @@ export const BackupsPage: React.FC = () => {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-[#F3F6FD] px-2 py-2 text-xs text-slate-900 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100"
               title="Dari Tanggal"
             />
             <span className="text-slate-400 text-xs">-</span>
@@ -175,7 +175,7 @@ export const BackupsPage: React.FC = () => {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-[#F3F6FD] px-2 py-2 text-xs text-slate-900 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100"
               title="Sampai Tanggal"
             />
           </div>
@@ -183,9 +183,9 @@ export const BackupsPage: React.FC = () => {
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden md:block rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-darkSurface">
+      <div className="hidden md:block rounded-2xl border border-[#92B4EC]/70 bg-white shadow-sm overflow-hidden dark:border-[#1E3E62] dark:bg-[#0B192C]">
         <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider dark:bg-slate-900/60 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+          <thead className="bg-[#F3F6FD] text-slate-500 uppercase tracking-wider dark:bg-[#000000] dark:text-slate-400 border-b border-[#92B4EC]/40 dark:border-[#1E3E62]">
             <tr>
               <th className="px-5 py-3.5 font-semibold">Nama File</th>
               <th className="px-4 py-3.5 font-semibold">Aplikasi</th>
@@ -195,7 +195,7 @@ export const BackupsPage: React.FC = () => {
               <th className="px-5 py-3.5 font-semibold text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+          <tbody className="divide-y divide-[#92B4EC]/30 dark:divide-[#1E3E62]/80">
             {isLoading ? (
               [1, 2, 3, 4, 5].map((i) => (
                 <tr key={i} className="animate-pulse">
@@ -230,9 +230,9 @@ export const BackupsPage: React.FC = () => {
               </tr>
             ) : (
               backupData?.backups?.map((b) => (
-                <tr key={b.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                <tr key={b.id} className="hover:bg-[#F3F6FD] dark:hover:bg-[#1E3E62]/30 transition-colors">
                   <td className="px-5 py-4 font-medium text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-indigo-500 shrink-0" />
+                    <FileText className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500] shrink-0" />
                     <span className="truncate max-w-xs">{b.filename}</span>
                   </td>
                   <td className="px-4 py-4 text-slate-600 dark:text-slate-300">
@@ -250,7 +250,7 @@ export const BackupsPage: React.FC = () => {
                         b.status === 'verified'
                           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400'
                           : b.status === 'quarantined'
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400'
+                          ? 'bg-[#FEA82F]/20 text-[#FF6701] dark:bg-[#FEA82F]/10 dark:text-[#FEA82F]'
                           : 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-400'
                       }`}
                     >
@@ -261,7 +261,7 @@ export const BackupsPage: React.FC = () => {
                     <button
                       onClick={() => setDetailBackup(b)}
                       title="Lihat Detail & Checksum"
-                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                      className="rounded-lg p-2 text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:hover:bg-[#1E3E62] dark:hover:text-[#FF6500] transition-colors"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
@@ -269,7 +269,7 @@ export const BackupsPage: React.FC = () => {
                       onClick={() => handleDownload(b)}
                       disabled={downloadingId === b.id}
                       title="Unduh File"
-                      className="rounded-lg p-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40"
+                      className="rounded-lg p-2 text-[#FF6701] hover:bg-[#FF6701]/10 dark:text-[#FF6500] dark:hover:bg-[#1E3E62] transition-colors"
                     >
                       <Download className="h-4 w-4" />
                     </button>
@@ -280,7 +280,7 @@ export const BackupsPage: React.FC = () => {
                           setDeleteError(null);
                         }}
                         title="Hapus Backup (Memerlukan 2FA)"
-                        className="rounded-lg p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                        className="rounded-lg p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -293,13 +293,13 @@ export const BackupsPage: React.FC = () => {
         </table>
       </div>
 
-      {/* Mobile Card List View (Target Sentuh >= 44px) */}
+      {/* Mobile Card List View */}
       <div className="grid grid-cols-1 gap-3 md:hidden">
         {isLoading ? (
           [1, 2, 3].map((i) => (
             <div
               key={i}
-              className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-darkSurface space-y-3 animate-pulse"
+              className="rounded-2xl border border-[#92B4EC]/60 bg-white p-4 dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-3 animate-pulse"
             >
               <div className="flex justify-between items-start">
                 <div className="space-y-1.5">
@@ -320,16 +320,16 @@ export const BackupsPage: React.FC = () => {
           backupData?.backups?.map((b) => (
             <div
               key={b.id}
-              className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-3"
+              className="rounded-2xl border border-[#92B4EC]/70 bg-white p-4 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-3"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-indigo-500 shrink-0" />
+                  <FileText className="h-5 w-5 text-[#FF6701] dark:text-[#FF6500] shrink-0" />
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[200px]">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate max-w-[200px]">
                       {b.filename}
                     </h4>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                       {b.application_name} · {formatBytes(b.size_bytes)}
                     </span>
                   </div>
@@ -338,36 +338,36 @@ export const BackupsPage: React.FC = () => {
                   className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
                     b.status === 'verified'
                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400'
-                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400'
+                      : 'bg-[#FEA82F]/20 text-[#FF6701] dark:bg-[#FEA82F]/10 dark:text-[#FEA82F]'
                   }`}
                 >
                   {b.status}
                 </span>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
+              <div className="flex items-center justify-between pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80">
                 <span className="text-[11px] text-slate-400">
                   {formatDate(b.uploaded_at)}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setDetailBackup(b)}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F3F6FD] text-slate-700 dark:bg-[#000000] dark:text-slate-300 border border-[#92B4EC]/40 dark:border-[#1E3E62]"
                   >
-                    <Eye className="h-5 w-5" />
+                    <Eye className="h-4.5 w-4.5" />
                   </button>
                   <button
                     onClick={() => handleDownload(b)}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF6701] text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black shadow-2xs"
                   >
-                    <Download className="h-5 w-5" />
+                    <Download className="h-4.5 w-4.5" />
                   </button>
                   {isAdmin && (
                     <button
                       onClick={() => setDeleteTarget(b)}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
                     >
-                      <Trash2 className="h-5 w-5" />
+                      <Trash2 className="h-4.5 w-4.5" />
                     </button>
                   )}
                 </div>
@@ -388,7 +388,7 @@ export const BackupsPage: React.FC = () => {
           <div className="space-y-4 text-xs">
             <div>
               <span className="font-semibold text-slate-500 dark:text-slate-400">Nama File</span>
-              <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-slate-100">{detailBackup.filename}</p>
+              <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{detailBackup.filename}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -404,13 +404,13 @@ export const BackupsPage: React.FC = () => {
 
             <div>
               <span className="font-semibold text-slate-500 dark:text-slate-400">SHA-256 Checksum</span>
-              <div className="mt-1 flex items-center justify-between rounded-xl bg-slate-100 p-2.5 font-mono text-[11px] text-slate-800 dark:bg-slate-900 dark:text-slate-200">
+              <div className="mt-1 flex items-center justify-between rounded-xl bg-black p-2.5 font-mono text-[11px] text-[#FF6500] border border-[#1E3E62]">
                 <span className="truncate mr-2">{detailBackup.sha256}</span>
                 <button
                   onClick={() => copyToClipboard(detailBackup.sha256)}
-                  className="shrink-0 p-1 hover:text-indigo-600 dark:hover:text-indigo-400"
+                  className="shrink-0 p-1 hover:text-white text-slate-400"
                 >
-                  {copiedSha ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                  {copiedSha ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                 </button>
               </div>
             </div>
@@ -420,10 +420,10 @@ export const BackupsPage: React.FC = () => {
               <p className="mt-0.5 text-slate-800 dark:text-slate-200">{formatDate(detailBackup.uploaded_at)}</p>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <div className="pt-4 border-t border-[#92B4EC]/30 dark:border-[#1E3E62] flex justify-end">
               <button
                 onClick={() => handleDownload(detailBackup)}
-                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+                className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all shadow-sm"
               >
                 <Download className="h-4 w-4" /> Unduh File Sekarang
               </button>
@@ -451,22 +451,22 @@ export const BackupsPage: React.FC = () => {
             }}
             className="space-y-4 text-xs"
           >
-            <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3.5 text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400">
-              <p className="font-semibold">Perlindungan Keamanan Tingkat Tinggi</p>
-              <p className="mt-1 text-[11px]">
+            <div className="rounded-xl border border-rose-300 bg-rose-50/80 p-3.5 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
+              <p className="font-bold">Perlindungan Keamanan Tingkat Tinggi</p>
+              <p className="mt-1 text-[11px] leading-relaxed">
                 Untuk mencegah ransomware atau akses tidak sah, penghapusan manual backup memerlukan verifikasi ulang kode 2FA Admin.
               </p>
             </div>
 
             {deleteError && (
-              <div className="rounded-xl bg-rose-100 p-2.5 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+              <div className="rounded-xl bg-rose-100 p-2.5 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 font-semibold">
                 {deleteError}
               </div>
             )}
 
             <div>
               <span className="font-medium text-slate-600 dark:text-slate-400">File yang akan dihapus:</span>
-              <p className="font-bold text-slate-900 dark:text-slate-100 truncate mt-0.5">
+              <p className="font-bold text-slate-900 dark:text-white truncate mt-0.5">
                 {deleteTarget.filename}
               </p>
             </div>
@@ -482,7 +482,7 @@ export const BackupsPage: React.FC = () => {
                 placeholder="123456"
                 value={twoFACode}
                 onChange={(e) => setTwoFACode(e.target.value)}
-                className="w-full text-center tracking-widest font-mono text-base rounded-xl border border-slate-300 p-2.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full text-center tracking-widest font-mono text-base rounded-xl border border-[#92B4EC]/80 bg-white p-2.5 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-white dark:focus:border-[#FF6500]"
               />
             </div>
 
@@ -492,25 +492,25 @@ export const BackupsPage: React.FC = () => {
                 id="permCheck"
                 checked={isPermanent}
                 onChange={(e) => setIsPermanent(e.target.checked)}
-                className="rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                className="rounded border-[#92B4EC] text-[#FF6701] focus:ring-[#FF6701]"
               />
               <label htmlFor="permCheck" className="text-slate-600 dark:text-slate-400">
                 Hapus permanen dari storage (bukan soft-delete karantina)
               </label>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]">
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-xl px-4 py-2.5 font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                className="rounded-xl border border-[#92B4EC]/80 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-300 dark:hover:bg-[#1E3E62] transition-colors"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={deleteMutation.isPending}
-                className="rounded-xl bg-rose-600 px-4 py-2.5 font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                className="rounded-xl bg-rose-600 px-4 py-2 font-semibold text-white hover:bg-rose-500 disabled:opacity-50 transition-colors shadow-2xs"
               >
                 {deleteMutation.isPending ? 'Menghapus...' : 'Konfirmasi Hapus'}
               </button>

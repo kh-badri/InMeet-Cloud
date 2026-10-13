@@ -8,14 +8,32 @@ export default {
   theme: {
     extend: {
       colors: {
-        darkBg: '#090D16',
-        darkSurface: '#0F172A',
-        darkCard: '#1E293B',
-        lightBg: '#F8FAFC',
+        // User specified exact palette:
+        // Dark Mode: #FF6500, #1E3E62, #0B192C, #000000
+        darkBg: '#000000',
+        darkSurface: '#0B192C',
+        darkCard: '#0B192C',
+        darkBorder: '#1E3E62',
+        darkOrange: '#FF6500',
+        darkNavy: '#1E3E62',
+        darkMidnight: '#0B192C',
+
+        // Light Mode: #92B4EC, #FFFFFF, #FEA82F, #FF6701
+        lightBg: '#F3F6FD',
         lightSurface: '#FFFFFF',
-        brandPrimary: '#4F46E5',
+        lightCard: '#FFFFFF',
+        lightBorder: '#92B4EC',
+        lightBlue: '#92B4EC',
+        lightAmber: '#FEA82F',
+        lightOrange: '#FF6701',
+
+        // Semantic brand aliases:
+        brandPrimary: '#FF6701',
+        brandOrange: '#FF6500',
+        brandAmber: '#FEA82F',
+        brandBlue: '#92B4EC',
+        brandNavy: '#1E3E62',
         brandSuccess: '#10B981',
-        brandWarning: '#F59E0B',
         brandDanger: '#EF4444',
       },
       fontFamily: {
@@ -25,7 +43,7 @@ export default {
         pageReveal: {
           '0%': { 
             opacity: '0', 
-            transform: 'translateY(10px)',
+            transform: 'translateY(8px)',
           },
           '100%': { 
             opacity: '1', 
@@ -41,7 +59,7 @@ export default {
           '100%': { opacity: '1', transform: 'scale(1)' },
         },
         slideDown: {
-          '0%': { opacity: '0', transform: 'translateY(-10px)' },
+          '0%': { opacity: '0', transform: 'translateY(-8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         indeterminateSlide: {
@@ -51,7 +69,7 @@ export default {
         },
         pulseGlow: {
           '0%, 100%': { opacity: '0.35', transform: 'scale(1)' },
-          '50%': { opacity: '0.75', transform: 'scale(1.06)' },
+          '50%': { opacity: '0.8', transform: 'scale(1.08)' },
         },
       },
       animation: {

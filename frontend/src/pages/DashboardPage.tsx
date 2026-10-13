@@ -2,10 +2,13 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest, formatBytes } from '../lib/api';
 import { StatsSummary } from '../types';
-import { HardDrive, Database, CheckCircle2, AlertTriangle, ArrowUpRight, Clock, ShieldCheck } from 'lucide-react';
+import { 
+  Database, CheckCircle2, AlertTriangle, ArrowUpRight, 
+  ShieldCheck, Server, Plus, BookOpen, Activity, Lock
+} from 'lucide-react';
 
 interface DashboardPageProps {
-  onNavigate: (tab: 'backups' | 'apps') => void;
+  onNavigate: (tab: 'backups' | 'apps' | 'docs') => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
@@ -18,31 +21,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   if (isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <div className="h-36 rounded-2xl border border-slate-200/70 bg-white p-6 dark:border-slate-800/70 dark:bg-darkSurface shimmer-effect flex flex-col justify-between">
-          <div className="h-3.5 w-44 rounded bg-slate-200 dark:bg-slate-800" />
-          <div className="h-8 w-60 rounded bg-slate-200 dark:bg-slate-800" />
-          <div className="h-3 w-full rounded-full bg-slate-200 dark:bg-slate-800" />
-        </div>
+        <div className="h-44 rounded-2xl border border-[#92B4EC]/60 bg-white p-6 dark:border-[#1E3E62] dark:bg-[#0B192C] shimmer-effect flex flex-col justify-between" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-32 rounded-2xl border border-slate-200/70 bg-white p-5 dark:border-slate-800/70 dark:bg-darkSurface shimmer-effect flex flex-col justify-between">
-              <div className="flex justify-between items-center">
-                <div className="h-3.5 w-24 rounded bg-slate-200 dark:bg-slate-800" />
-                <div className="h-7 w-7 rounded-lg bg-slate-200 dark:bg-slate-800" />
-              </div>
-              <div className="h-7 w-16 rounded bg-slate-200 dark:bg-slate-800" />
-              <div className="h-3 w-32 rounded bg-slate-200 dark:bg-slate-800" />
-            </div>
+            <div key={i} className="h-32 rounded-2xl border border-[#92B4EC]/60 bg-white p-5 dark:border-[#1E3E62] dark:bg-[#0B192C] shimmer-effect" />
           ))}
         </div>
-        <div className="h-64 rounded-2xl border border-slate-200/70 bg-white p-6 dark:border-slate-800/70 dark:bg-darkSurface shimmer-effect" />
+        <div className="h-64 rounded-2xl border border-[#92B4EC]/60 bg-white p-6 dark:border-[#1E3E62] dark:bg-[#0B192C] shimmer-effect" />
       </div>
     );
   }
 
   if (error || !stats) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400">
+      <div className="rounded-2xl border border-rose-300 bg-rose-50 p-6 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-400">
         Gagal memuat statistik sistem: {(error as any)?.message}
       </div>
     );
@@ -51,174 +43,249 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const maxDailyBytes = Math.max(...(stats.daily_stats?.map((d) => d.total_bytes) || [1]), 1);
 
   return (
-    <div className="space-y-6">
-      {/* Missing Backups Warning Banner */}
+    <div className="space-y-6 pb-12 md:pb-6">
+      {/* Top Header & Quick Action Hub */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+              Pusat Kontrol Penyimpanan
+            </h2>
+            <span className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-mono font-bold bg-[#FEA82F]/15 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] border border-[#FEA82F]/30 dark:border-[#FF6500]/30">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              LIVE TELEMETRY
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Status kapasitas disk, verifikasi integritas berkas SHA-256, dan ingestion harian.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigate('apps')}
+            className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all"
+          >
+            <Plus className="h-3.5 w-3.5" /> Tambah Aplikasi
+          </button>
+          <button
+            onClick={() => onNavigate('docs')}
+            className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F0F4FC] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+          >
+            <BookOpen className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" /> Panduan API
+          </button>
+        </div>
+      </div>
+
+      {/* Warning Banner: Missing Backups */}
       {stats.apps_missing_today && stats.apps_missing_today.length > 0 && (
-        <div className="flex items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/20">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+        <div className="flex items-start gap-3.5 rounded-2xl border border-[#FEA82F] bg-[#FEA82F]/10 p-4 dark:border-[#FF6500]/50 dark:bg-[#FF6500]/10">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-[#FF6701] dark:text-[#FF6500] mt-0.5" />
           <div className="flex-1">
-            <h4 className="text-sm font-bold text-amber-900 dark:text-amber-300">
+            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
               Perhatian: Ada Aplikasi Belum Mengirim Backup Hari Ini
             </h4>
-            <p className="mt-1 text-xs text-amber-800 dark:text-amber-400">
-              Aplikasi berikut belum memiliki backup verified untuk tanggal hari ini:{' '}
-              <span className="font-semibold">{stats.apps_missing_today.join(', ')}</span>.
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+              Aplikasi berikut belum memiliki backup verified hari ini:{' '}
+              <span className="font-bold text-[#FF6701] dark:text-[#FF6500]">
+                {stats.apps_missing_today.join(', ')}
+              </span>. Pastikan cron job aplikasi utama aktif berjalan.
             </p>
           </div>
         </div>
       )}
 
-      {/* Storage Capacity Overview Card */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-darkSurface">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Kapasitas Penyimpanan Server
-            </span>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+      {/* Hero Bento: Storage Capacity Telemetry Card */}
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 sm:p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C]">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                Kapasitas Penyimpanan Server
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-md bg-[#92B4EC]/25 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-700 dark:bg-[#1E3E62] dark:text-slate-300">
+                <Lock className="h-2.5 w-2.5 text-[#FF6701] dark:text-[#FF6500]" />
+                AES-256-GCM
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-2.5">
+              <span className="text-3xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
                 {formatBytes(stats.total_size_bytes)}
               </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                dari total disk {formatBytes(stats.disk_total_bytes || 1073741824000)}
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                terpakai dari total disk {formatBytes(stats.disk_total_bytes || 1073741824000)}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Tersisa {formatBytes(stats.disk_free_bytes || 0)}
-            </span>
+          {/* Quick Metrics Badges */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] px-3.5 py-2 dark:border-[#1E3E62] dark:bg-[#000000]">
+              <span className="text-[10px] font-semibold text-slate-400 block">Ruang Tersisa</span>
+              <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                {formatBytes(stats.disk_free_bytes || 0)}
+              </span>
+            </div>
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] px-3.5 py-2 dark:border-[#1E3E62] dark:bg-[#000000]">
+              <span className="text-[10px] font-semibold text-slate-400 block">Persentase Digunakan</span>
+              <span className="text-xs font-bold font-mono text-[#FF6701] dark:text-[#FF6500]">
+                {stats.disk_used_percent.toFixed(1)}%
+              </span>
+            </div>
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] px-3.5 py-2 dark:border-[#1E3E62] dark:bg-[#000000]">
+              <span className="text-[10px] font-semibold text-slate-400 block">Retensi Cron</span>
+              <span className="text-xs font-bold font-mono text-slate-800 dark:text-slate-200">
+                23:30 WIB
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mt-4">
-          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        {/* Dual-color Segmented Progress Meter */}
+        <div className="mt-5 space-y-1.5">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-[#92B4EC]/30 dark:bg-[#000000] p-0.5 border border-[#92B4EC]/40 dark:border-[#1E3E62]">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                stats.disk_used_percent > 85
-                  ? 'bg-rose-500'
-                  : stats.disk_used_percent > 70
-                  ? 'bg-amber-500'
-                  : 'bg-indigo-600 dark:bg-indigo-500'
-              }`}
-              style={{ width: `${Math.min(Math.max(stats.disk_used_percent, 2), 100)}%` }}
+              className="h-full rounded-full transition-all duration-500 bg-[#FF6701] dark:bg-[#FF6500] shadow-xs"
+              style={{ width: `${Math.min(Math.max(stats.disk_used_percent, 1.5), 100)}%` }}
             />
           </div>
-          <div className="mt-2 flex justify-between text-[11px] text-slate-400 dark:text-slate-500">
-            <span>Terpakai: {stats.disk_used_percent.toFixed(1)}%</span>
-            <span>Alert threshold: 80%</span>
+          <div className="flex justify-between text-[11px] text-slate-400 dark:text-slate-500 font-mono">
+            <span>0%</span>
+            <span>Alert Threshold: 80%</span>
+            <span>100%</span>
           </div>
         </div>
       </div>
 
-      {/* 4 Stat Cards */}
+      {/* 4 Micro-Bento Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Total Backups */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-darkSurface">
+        <div 
+          onClick={() => onNavigate('backups')}
+          className="group cursor-pointer rounded-2xl border border-[#92B4EC]/70 bg-white p-5 shadow-2xs hover:shadow-md transition-all dark:border-[#1E3E62] dark:bg-[#0B192C] flex flex-col justify-between"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total File Backup</span>
-            <div className="rounded-xl bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
-              <Database className="h-5 w-5" />
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total File Backup</span>
+            <div className="rounded-xl bg-[#FEA82F]/15 p-2 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] border border-[#FEA82F]/30 dark:border-[#FF6500]/30">
+              <Database className="h-4.5 w-4.5" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
               {stats.total_backups}
             </span>
           </div>
-          <div className="mt-2 flex items-center text-xs text-indigo-600 dark:text-cyan-400 hover:underline cursor-pointer" onClick={() => onNavigate('backups')}>
-            Lihat semua backup <ArrowUpRight className="h-3 w-3 ml-0.5" />
+          <div className="mt-3 flex items-center justify-between text-xs pt-2.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80 text-[#FF6701] dark:text-[#FF6500] font-semibold">
+            <span>Buka daftar berkas</span>
+            <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </div>
         </div>
 
         {/* Card 2: Today's Backups */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-darkSurface">
+        <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 shadow-2xs dark:border-[#1E3E62] dark:bg-[#0B192C] flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Backup Hari Ini</span>
-            <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
-              <CheckCircle2 className="h-5 w-5" />
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Backup Hari Ini</span>
+            <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-500/20">
+              <CheckCircle2 className="h-4.5 w-4.5" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
               {stats.today_backups}
             </span>
           </div>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            {stats.apps_with_backup_today} dari {stats.active_apps_count} aplikasi
-          </p>
+          <div className="mt-3 text-xs pt-2.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80 text-slate-500 dark:text-slate-400">
+            <span className="font-bold text-slate-800 dark:text-slate-200">{stats.apps_with_backup_today}</span> dari {stats.active_apps_count} aplikasi aktif
+          </div>
         </div>
 
         {/* Card 3: Active Apps */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-darkSurface">
+        <div 
+          onClick={() => onNavigate('apps')}
+          className="group cursor-pointer rounded-2xl border border-[#92B4EC]/70 bg-white p-5 shadow-2xs hover:shadow-md transition-all dark:border-[#1E3E62] dark:bg-[#0B192C] flex flex-col justify-between"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Aplikasi Terdaftar</span>
-            <div className="rounded-xl bg-cyan-50 p-2 text-cyan-600 dark:bg-cyan-950/50 dark:text-cyan-400">
-              <HardDrive className="h-5 w-5" />
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Aplikasi Terdaftar</span>
+            <div className="rounded-xl bg-[#92B4EC]/20 p-2 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FEA82F] border border-[#92B4EC]/40 dark:border-[#1E3E62]">
+              <Server className="h-4.5 w-4.5" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
               {stats.active_apps_count}
             </span>
           </div>
-          <div className="mt-2 flex items-center text-xs text-indigo-600 dark:text-cyan-400 hover:underline cursor-pointer" onClick={() => onNavigate('apps')}>
-            Kelola aplikasi & API Key <ArrowUpRight className="h-3 w-3 ml-0.5" />
+          <div className="mt-3 flex items-center justify-between text-xs pt-2.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80 text-[#FF6701] dark:text-[#FF6500] font-semibold">
+            <span>Kelola API Keys</span>
+            <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </div>
         </div>
 
         {/* Card 4: Integrity Status */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-darkSurface">
+        <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 shadow-2xs dark:border-[#1E3E62] dark:bg-[#0B192C] flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Integritas Checksum</span>
-            <div className="rounded-xl bg-violet-50 p-2 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400">
-              <Clock className="h-5 w-5" />
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Verifikasi Integritas</span>
+            <div className="rounded-xl bg-[#FF6701]/10 p-2 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] border border-[#FF6701]/20 dark:border-[#FF6500]/30">
+              <ShieldCheck className="h-4.5 w-4.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+          <div className="mt-3 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
               100%
             </span>
+            <span className="text-xs text-slate-400 font-mono">OK</span>
           </div>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            SHA-256 terverifikasi otomatis
-          </p>
+          <div className="mt-3 text-xs pt-2.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80 text-slate-500 dark:text-slate-400">
+            Hash SHA-256 tervalidasi
+          </div>
         </div>
       </div>
 
-      {/* 30-Day Volume Visual Bar Chart */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-darkSurface">
-        <div className="flex items-center justify-between mb-6">
+      {/* 30-Day Volume Bar Chart */}
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-5 sm:p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C]">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              Aktivitas Backup 30 Hari Terakhir
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Activity className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+              Aktivitas Ingestion 30 Hari Terakhir
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Volume harian data terenkripsi yang masuk ke InMeet Cloud
             </p>
           </div>
+
+          <div className="flex items-center gap-3 text-xs font-mono">
+            <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+              <span className="h-2.5 w-2.5 rounded-sm bg-[#92B4EC] dark:bg-[#1E3E62]" /> Rendah
+            </span>
+            <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+              <span className="h-2.5 w-2.5 rounded-sm bg-[#FF6701] dark:bg-[#FF6500]" /> Aktif
+            </span>
+          </div>
         </div>
 
         {stats.daily_stats && stats.daily_stats.length > 0 ? (
-          <div className="flex items-end gap-1.5 h-48 pt-6 border-b border-slate-200/80 dark:border-slate-800/80">
+          <div className="flex items-end gap-1.5 h-44 pt-6 border-b border-[#92B4EC]/40 dark:border-[#1E3E62]">
             {stats.daily_stats.map((day) => {
-              const heightPercent = Math.max((day.total_bytes / maxDailyBytes) * 100, day.total_bytes > 0 ? 8 : 2);
+              const heightPercent = Math.max((day.total_bytes / maxDailyBytes) * 100, day.total_bytes > 0 ? 10 : 3);
               return (
                 <div
                   key={day.date}
                   className="group relative flex-1 flex flex-col items-center h-full justify-end"
                 >
                   {/* Tooltip */}
-                  <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 rounded-lg bg-slate-900 px-2 py-1 text-[10px] text-white whitespace-nowrap shadow-md">
+                  <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 rounded-lg bg-black px-2 py-1 text-[10px] text-white whitespace-nowrap shadow-md border border-[#1E3E62] font-mono">
                     {day.date}: {formatBytes(day.total_bytes)} ({day.count} file)
                   </div>
 
                   {/* Bar */}
                   <div
-                    className="w-full rounded-t-md transition-colors duration-200 bg-slate-200 group-hover:bg-indigo-600 dark:bg-slate-800 dark:group-hover:bg-indigo-500"
+                    className={`w-full rounded-t-md transition-all duration-200 ${
+                      day.count > 0 
+                        ? 'bg-[#FF6701] group-hover:bg-[#FEA82F] dark:bg-[#FF6500] dark:group-hover:bg-[#FEA82F]' 
+                        : 'bg-[#92B4EC]/30 group-hover:bg-[#92B4EC]/60 dark:bg-[#1E3E62]/40 dark:group-hover:bg-[#1E3E62]'
+                    }`}
                     style={{
                       height: `${heightPercent}%`,
                     }}
@@ -233,7 +300,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
         )}
 
-        <div className="flex justify-between items-center text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+        <div className="flex justify-between items-center text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-2.5">
           <span>30 hari lalu</span>
           <span>Hari ini</span>
         </div>

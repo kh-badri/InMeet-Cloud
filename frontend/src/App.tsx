@@ -41,29 +41,29 @@ export const App: React.FC = () => {
   // Modern, Minimalist & Calming Splash Loading Screen
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-lightBg dark:bg-darkBg p-4 selection:bg-indigo-500 selection:text-white">
+      <div className="flex min-h-screen items-center justify-center bg-lightBg dark:bg-darkBg p-4 selection:bg-[#FF6701] dark:selection:bg-[#FF6500] selection:text-white">
         <div className="flex flex-col items-center gap-5 max-w-xs text-center animate-fade-in">
           {/* Logo with Soft Ambient Halo */}
           <div className="relative flex items-center justify-center">
-            <div className="absolute h-16 w-16 rounded-2xl bg-indigo-500/15 dark:bg-indigo-500/25 animate-pulse-glow" />
-            <div className="relative h-14 w-14 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30">
+            <div className="absolute h-16 w-16 rounded-2xl bg-[#FF6701]/20 dark:bg-[#FF6500]/25 animate-pulse-glow" />
+            <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-[#FEA82F] to-[#FF6701] dark:from-[#FF6500] dark:to-[#1E3E62] flex items-center justify-center text-white shadow-md shadow-[#FF6701]/30 dark:shadow-[#FF6500]/20">
               <Cloud className="h-6 w-6" />
             </div>
           </div>
 
           {/* Clean Typography */}
           <div className="flex flex-col items-center gap-1">
-            <h1 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+            <h1 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
               InMeet Cloud
             </h1>
-            <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
               Memuat sistem penyimpanan aman...
             </p>
           </div>
 
           {/* Sleek Precision Indeterminate Loading Track */}
-          <div className="w-44 h-1 bg-slate-200/80 dark:bg-slate-800 rounded-full overflow-hidden relative">
-            <div className="h-full bg-indigo-600 rounded-full animate-indeterminate" />
+          <div className="w-44 h-1 bg-[#92B4EC]/25 dark:bg-[#1E3E62]/40 rounded-full overflow-hidden relative">
+            <div className="h-full bg-gradient-to-r from-[#FEA82F] to-[#FF6701] dark:from-[#FF6500] dark:to-[#FEA82F] rounded-full animate-indeterminate" />
           </div>
 
           <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mt-1">

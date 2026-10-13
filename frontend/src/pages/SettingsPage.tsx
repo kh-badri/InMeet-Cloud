@@ -210,13 +210,13 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* Ubah Email / Akun Card */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-4">
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-indigo-500" />
+            <User className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
             <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Profil Akun & Email Login</h3>
           </div>
-          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400">
+          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#FEA82F]/15 text-[#FF6701] dark:bg-[#FF6500]/15 dark:text-[#FF6500]">
             Peran: {user?.role}
           </span>
         </div>
@@ -246,7 +246,7 @@ export const SettingsPage: React.FC = () => {
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="admin@domain.com"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/25"
               />
             </div>
             <div>
@@ -259,7 +259,7 @@ export const SettingsPage: React.FC = () => {
                 value={profilePassword}
                 onChange={(e) => setProfilePassword(e.target.value)}
                 placeholder="Masukkan password saat ini"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/25"
               />
             </div>
           </div>
@@ -267,7 +267,7 @@ export const SettingsPage: React.FC = () => {
             <button
               type="submit"
               disabled={isUpdatingProfile}
-              className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 shadow-md shadow-indigo-600/20 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 text-xs font-bold text-white shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20 transition-all"
             >
               {isUpdatingProfile ? 'Menyimpan...' : 'Simpan Perubahan Email'}
             </button>
@@ -276,9 +276,9 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* Ubah Password Card */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-4">
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-4">
         <div className="flex items-center gap-2">
-          <Lock className="h-4 w-4 text-indigo-500" />
+          <Lock className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
           <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Ganti Password Login</h3>
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -310,7 +310,7 @@ export const SettingsPage: React.FC = () => {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Password lama"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/25"
               />
             </div>
             <div>
@@ -323,7 +323,7 @@ export const SettingsPage: React.FC = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Min 8 karakter"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/25"
               />
             </div>
             <div>
@@ -336,7 +336,7 @@ export const SettingsPage: React.FC = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Ulangi password baru"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/25"
               />
             </div>
           </div>
@@ -344,7 +344,7 @@ export const SettingsPage: React.FC = () => {
             <button
               type="submit"
               disabled={isUpdatingPassword}
-              className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 text-xs font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20"
             >
               {isUpdatingPassword ? 'Memperbarui...' : 'Perbarui Password'}
             </button>
@@ -353,11 +353,11 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* 2FA Card */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-4">
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
-              <Shield className="h-4 w-4 text-indigo-500" />
+              <Shield className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
               Autentikasi Dua Faktor (2FA TOTP)
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -388,39 +388,39 @@ export const SettingsPage: React.FC = () => {
               <button
                 onClick={handleStartSetup}
                 disabled={isSubmitting}
-                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+                className="flex items-center gap-2 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2.5 text-xs font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20"
               >
                 <KeyRound className="h-4 w-4" /> Aktifkan 2FA Sekarang
               </button>
             ) : (
-              <form onSubmit={handleConfirmSetup} className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <form onSubmit={handleConfirmSetup} className="space-y-4 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                  <div className="flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <img src={qrCodeUrl} alt="QR Code TOTP" className="h-44 w-44 rounded-lg bg-white p-2 shadow-sm" />
+                  <div className="flex flex-col items-center p-4 bg-slate-50 dark:bg-[#000000] rounded-2xl border border-[#92B4EC]/60 dark:border-[#1E3E62]">
+                    <img src={qrCodeUrl} alt="QR Code TOTP" className="h-44 w-44 rounded-lg bg-white p-2 shadow-sm border border-[#92B4EC]/30 dark:border-[#1E3E62]" />
                     <span className="text-[11px] text-slate-400 mt-2">Scan dengan aplikasi Authenticator Anda</span>
                     <div className="mt-2 text-center">
                       <span className="text-[10px] text-slate-400 block">Atau masukkan secret key manual:</span>
-                      <code className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">{totpSecret}</code>
+                      <code className="text-xs font-mono font-bold text-[#FF6701] dark:text-[#FF6500]">{totpSecret}</code>
                     </div>
                   </div>
 
                   <div className="space-y-3 text-xs">
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-amber-800 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-400">
-                      <p className="font-bold flex items-center gap-1.5">
+                    <div className="rounded-xl border border-[#FEA82F]/40 bg-[#FEA82F]/10 p-3 text-slate-800 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200">
+                      <p className="font-bold flex items-center gap-1.5 text-[#FF6701] dark:text-[#FF6500]">
                         <AlertTriangle className="h-4 w-4" /> Simpan Kode Pemulihan (Emergency Codes)
                       </p>
-                      <p className="mt-1 text-[11px]">
+                      <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">
                         Jika ponsel Anda hilang, kode-kode ini adalah satu-satunya cara masuk ke akun:
                       </p>
-                      <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-[11px] bg-white dark:bg-slate-900 p-2 rounded-lg border border-amber-200/60 dark:border-amber-900/40">
+                      <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-[11px] bg-white dark:bg-[#0B192C] p-2 rounded-lg border border-[#FEA82F]/30 dark:border-[#1E3E62]">
                         {recoveryCodes.map((c, i) => (
-                          <div key={i}>{c}</div>
+                          <div key={i} className="text-slate-800 dark:text-slate-200">{c}</div>
                         ))}
                       </div>
                       <button
                         type="button"
                         onClick={copyCodes}
-                        className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                        className="mt-2 flex items-center gap-1 text-[11px] font-bold text-[#FF6701] dark:text-[#FF6500] hover:underline"
                       >
                         {copiedCodes ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
                         Salin semua kode pemulihan
@@ -437,7 +437,7 @@ export const SettingsPage: React.FC = () => {
                         placeholder="123456"
                         value={confirmCode}
                         onChange={(e) => setConfirmCode(e.target.value)}
-                        className="w-full text-center tracking-widest font-mono text-base rounded-xl border border-slate-300 p-2.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        className="w-full text-center tracking-widest font-mono text-base font-bold rounded-xl border border-[#92B4EC]/80 bg-white p-2.5 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/25"
                       />
                     </div>
 
@@ -452,7 +452,7 @@ export const SettingsPage: React.FC = () => {
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                        className="rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20"
                       >
                         {isSubmitting ? 'Mengaktifkan...' : 'Konfirmasi & Aktifkan'}
                       </button>
@@ -483,7 +483,7 @@ export const SettingsPage: React.FC = () => {
                     placeholder="123456"
                     value={disableCode}
                     onChange={(e) => setDisableCode(e.target.value)}
-                    className="w-48 font-mono text-sm rounded-xl border border-slate-300 p-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    className="w-48 font-mono text-sm rounded-xl border border-[#92B4EC]/80 bg-white p-2 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 outline-none focus:border-[#FF6701] dark:focus:border-[#FF6500]"
                   />
                 </div>
                 <div className="flex gap-2">
@@ -510,10 +510,10 @@ export const SettingsPage: React.FC = () => {
 
       {/* Kebijakan Retensi Otomatis & Pembersihan Storage (Admin Only) */}
       {isAdmin && (
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-5 text-xs">
+        <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-5 text-xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-indigo-500" />
+              <Clock className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
                   Kebijakan Retensi Otomatis & Pembersihan Storage
@@ -528,9 +528,9 @@ export const SettingsPage: React.FC = () => {
               <button
                 onClick={() => runRetentionMutation.mutate(true)}
                 disabled={runRetentionMutation.isPending}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62]/40 transition-all disabled:opacity-50"
               >
-                <CheckSquare className="h-3.5 w-3.5 text-indigo-500" />
+                <CheckSquare className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" />
                 Simulasi (Dry-Run)
               </button>
               <button
@@ -540,7 +540,7 @@ export const SettingsPage: React.FC = () => {
                   }
                 }}
                 disabled={runRetentionMutation.isPending}
-                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-xs"
+                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-3.5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 shadow-md shadow-[#FF6701]/20 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
                 Jalankan Retensi Sekarang
@@ -550,9 +550,9 @@ export const SettingsPage: React.FC = () => {
 
           {/* Retention Result Banner */}
           {retentionRunResult && (
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/30 space-y-2">
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#92B4EC]/10 p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                   Hasil Eksekusi Retensi ({retentionRunResult.is_dry_run ? 'Simulasi / Dry-Run' : 'Live Execution'})
                 </span>
@@ -561,21 +561,21 @@ export const SettingsPage: React.FC = () => {
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-1 text-center font-mono">
-                <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                <div className="bg-white dark:bg-[#0B192C] p-2 rounded-lg border border-[#92B4EC]/40 dark:border-[#1E3E62]">
                   <span className="text-[10px] text-slate-400 block font-sans">Dikarantina</span>
-                  <span className="text-base font-bold text-amber-600 dark:text-amber-400">
+                  <span className="text-base font-bold text-[#FF6701] dark:text-[#FF6500]">
                     {retentionRunResult.items_quarantined || 0} file
                   </span>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                <div className="bg-white dark:bg-[#0B192C] p-2 rounded-lg border border-[#92B4EC]/40 dark:border-[#1E3E62]">
                   <span className="text-[10px] text-slate-400 block font-sans">Dihapus Permanen</span>
-                  <span className="text-base font-bold text-rose-600 dark:text-rose-400">
+                  <span className="text-base font-bold text-rose-500">
                     {retentionRunResult.items_deleted || 0} file
                   </span>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                <div className="bg-white dark:bg-[#0B192C] p-2 rounded-lg border border-[#92B4EC]/40 dark:border-[#1E3E62]">
                   <span className="text-[10px] text-slate-400 block font-sans">Ruang Dibebaskan</span>
-                  <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-base font-bold text-emerald-500">
                     {formatBytes(retentionRunResult.bytes_freed || 0)}
                   </span>
                 </div>
@@ -586,18 +586,18 @@ export const SettingsPage: React.FC = () => {
           {/* Aturan Retensi Aktif per Aplikasi */}
           <div className="space-y-2">
             <h4 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <Sliders className="h-3.5 w-3.5 text-indigo-500" />
+              <Sliders className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" />
               Aturan Retensi per Aplikasi Saat Ini:
             </h4>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-800 overflow-hidden">
+            <div className="divide-y divide-[#92B4EC]/30 dark:divide-[#1E3E62] rounded-xl border border-[#92B4EC]/60 dark:border-[#1E3E62] overflow-hidden">
               {apps?.map((app) => (
-                <div key={app.id} className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-900/30">
+                <div key={app.id} className="flex items-center justify-between p-3 bg-white dark:bg-[#000000]">
                   <div>
                     <span className="font-bold text-slate-900 dark:text-slate-100">{app.display_name}</span>
                     <span className="ml-2 font-mono text-[10px] text-slate-400">({app.name})</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-[#FEA82F]/15 px-2.5 py-1 text-[11px] font-bold text-[#FF6701] dark:bg-[#FF6500]/15 dark:text-[#FF6500]">
                       Hapus setelah: {app.retention_days} hari
                     </span>
                     <span className="text-[11px] text-slate-400">
@@ -614,39 +614,39 @@ export const SettingsPage: React.FC = () => {
 
           {/* Riwayat Eksekusi Retensi */}
           {retentionRuns && retentionRuns.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="space-y-2 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]">
               <h4 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <History className="h-3.5 w-3.5 text-indigo-500" />
+                <History className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" />
                 Riwayat Pembersihan Retensi Terakhir:
               </h4>
-              <div className="overflow-x-auto rounded-xl border border-slate-200/70 dark:border-slate-800">
+              <div className="overflow-x-auto rounded-xl border border-[#92B4EC]/60 dark:border-[#1E3E62]">
                 <table className="w-full text-left text-[11px]">
-                  <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 border-b border-slate-200/70 dark:border-slate-800">
+                  <thead className="bg-[#92B4EC]/15 dark:bg-[#000000] text-slate-700 dark:text-slate-300 border-b border-[#92B4EC]/40 dark:border-[#1E3E62]">
                     <tr>
-                      <th className="px-3 py-2 font-medium">Waktu Eksekusi</th>
-                      <th className="px-3 py-2 font-medium">Tipe</th>
-                      <th className="px-3 py-2 font-medium">Status</th>
-                      <th className="px-3 py-2 font-medium">Dikarantina</th>
-                      <th className="px-3 py-2 font-medium">Dihapus</th>
-                      <th className="px-3 py-2 font-medium">Kapasitas Bebas</th>
+                      <th className="px-3 py-2 font-bold">Waktu Eksekusi</th>
+                      <th className="px-3 py-2 font-bold">Tipe</th>
+                      <th className="px-3 py-2 font-bold">Status</th>
+                      <th className="px-3 py-2 font-bold">Dikarantina</th>
+                      <th className="px-3 py-2 font-bold">Dihapus</th>
+                      <th className="px-3 py-2 font-bold">Kapasitas Bebas</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-[#92B4EC]/20 dark:divide-[#1E3E62]">
                     {retentionRuns.slice(0, 5).map((run: any) => (
-                      <tr key={run.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                      <tr key={run.id} className="hover:bg-[#92B4EC]/5 dark:hover:bg-[#1E3E62]/20">
                         <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">
                           {formatDate(run.triggered_at)}
                         </td>
                         <td className="px-3 py-2">
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
                             run.is_dry_run 
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' 
-                              : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                              ? 'bg-[#FEA82F]/15 text-[#FF6701] dark:bg-[#FEA82F]/20 dark:text-[#FEA82F]' 
+                              : 'bg-[#FF6701]/15 text-[#FF6701] dark:bg-[#FF6500]/20 dark:text-[#FF6500]'
                           }`}>
                             {run.is_dry_run ? 'Dry-Run' : 'Live'}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-emerald-600 dark:text-emerald-400 font-medium">
+                        <td className="px-3 py-2 text-emerald-500 font-bold">
                           {run.status}
                         </td>
                         <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
@@ -655,7 +655,7 @@ export const SettingsPage: React.FC = () => {
                         <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
                           {run.items_deleted || 0}
                         </td>
-                        <td className="px-3 py-2 font-medium text-emerald-600 dark:text-emerald-400">
+                        <td className="px-3 py-2 font-bold text-emerald-500">
                           {formatBytes(run.bytes_freed || 0)}
                         </td>
                       </tr>
@@ -669,24 +669,24 @@ export const SettingsPage: React.FC = () => {
       )}
 
       {/* Panduan Enkripsi Klien (Client-Side Encryption) */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-darkSurface space-y-3 text-xs">
+      <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-3 text-xs">
         <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
-          <Terminal className="h-4 w-4 text-indigo-500" />
+          <Terminal className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
           Panduan Enkripsi Sisi Klien (Client-Side with `age`)
         </h3>
         <p className="text-slate-600 dark:text-slate-300">
           Sesuai standar keamanan terbaik, Anda sangat disarankan mengenkripsi database backup sebelum diunggah ke server:
         </p>
 
-        <div className="rounded-xl bg-slate-900 p-4 font-mono text-[11px] text-slate-200 space-y-2 overflow-x-auto">
-          <p className="text-slate-400"># 1. Generate keypair di server klien:</p>
-          <p className="text-indigo-400">age-keygen -o backup_key.txt</p>
-          <p className="text-slate-400"># 2. Dump PostgreSQL + compress + encrypt + upload streaming:</p>
-          <p className="text-emerald-400">
+        <div className="rounded-2xl bg-[#000000] border border-[#1E3E62] p-4 font-mono text-[11px] text-slate-200 space-y-2 overflow-x-auto shadow-inner">
+          <p className="text-slate-500"># 1. Generate keypair di server klien:</p>
+          <p className="text-[#FF6500] font-bold">age-keygen -o backup_key.txt</p>
+          <p className="text-slate-500"># 2. Dump PostgreSQL + compress + encrypt + upload streaming:</p>
+          <p className="text-[#FEA82F] font-bold">
             pg_dump mydb | gzip | age -r &lt;PUBLIC_KEY&gt; &gt; backup.sql.gz.age
           </p>
-          <p className="text-slate-400"># 3. Kirim via curl dengan header checksum:</p>
-          <p className="text-indigo-300">
+          <p className="text-slate-500"># 3. Kirim via curl dengan header checksum:</p>
+          <p className="text-[#92B4EC]">
             curl -X PUT https://inmeet.cloud/api/v1/upload \<br/>
             &nbsp;&nbsp;-H "Authorization: Bearer $API_KEY" \<br/>
             &nbsp;&nbsp;-H "X-Checksum-SHA256: $(sha256sum backup.sql.gz.age | cut -d' ' -f1)" \<br/>
