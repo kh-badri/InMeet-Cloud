@@ -501,6 +501,40 @@ export const DrivePage: React.FC = () => {
         </div>
       </div>
 
+      {/* Current Folder Info & Space Banner */}
+      {data?.current_folder && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#92B4EC] bg-[#F3F6FD] px-4 py-3 dark:border-[#1E3E62] dark:bg-[#000000] shadow-xs animate-fade-in">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF6701]/15 text-[#FF6701] dark:bg-[#FF6500]/20 dark:text-[#FF6500]">
+              <Folder className="h-5 w-5" fill="currentColor" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                Folder: {data.current_folder.name}
+              </p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                {data.current_folder.item_count !== undefined ? `${data.current_folder.item_count} item tersimpan` : `${folders.length + files.length} item`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-white px-3 py-1.5 text-xs font-mono font-bold text-[#FF6701] dark:border-[#FF6500]/40 dark:bg-[#0B192C] dark:text-[#FF6500]">
+              <HardDrive className="h-3.5 w-3.5" />
+              <span>Space Digunakan: {formatBytes(data.current_folder.size_bytes)}</span>
+            </span>
+            <button
+              onClick={() => handleDownload(data.current_folder!)}
+              className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-200 transition-colors"
+              title="Unduh seluruh isi folder ini sebagai arsip ZIP"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Unduh ZIP</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       {isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -545,8 +579,8 @@ export const DrivePage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* FOLDERS SECTION */}
-          {folders.length > 0 && (
+          {/* FOLDERS SECTION (In Grid Mode) */}
+          {folders.length > 0 && viewMode === 'grid' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-black tracking-wider uppercase text-slate-400 dark:text-slate-500">
@@ -569,12 +603,18 @@ export const DrivePage: React.FC = () => {
                         <Folder className="h-5 w-5 text-[#FF6701] dark:text-[#FF6500]" fill="currentColor" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate" title={folder.name}>
                           {folder.name}
                         </p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          {folder.item_count !== undefined ? `${folder.item_count} item` : 'Folder'} • {formatDate(folder.created_at)}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold bg-[#92B4EC]/25 text-[#FF6701] dark:bg-[#000000] dark:text-[#FEA82F] border border-[#92B4EC]/40 dark:border-[#1E3E62]">
+                            <HardDrive className="h-2.5 w-2.5" />
+                            {formatBytes(folder.size_bytes)}
+                          </span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {folder.item_count !== undefined ? `${folder.item_count} item` : '0 item'}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -618,8 +658,8 @@ export const DrivePage: React.FC = () => {
             </div>
           )}
 
-          {/* FILES SECTION */}
-          {files.length > 0 && (
+          {/* GRID VIEW FOR FILES */}
+          {files.length > 0 && viewMode === 'grid' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-black tracking-wider uppercase text-slate-400 dark:text-slate-500">
@@ -627,171 +667,230 @@ export const DrivePage: React.FC = () => {
                 </h2>
               </div>
 
-              {viewMode === 'grid' ? (
-                /* Grid View */
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                  {files.map((file) => {
-                    const isImg = file.mime_type.startsWith('image/');
-                    return (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {files.map((file) => {
+                  const isImg = file.mime_type.startsWith('image/');
+                  return (
+                    <div
+                      key={file.id}
+                      className="group relative flex flex-col justify-between rounded-2xl border border-[#92B4EC] bg-white p-3 hover:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500] transition-colors shadow-xs"
+                    >
+                      {/* File preview thumbnail or icon */}
                       <div
-                        key={file.id}
-                        className="group relative flex flex-col justify-between rounded-2xl border border-[#92B4EC] bg-white p-3 hover:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500] transition-colors shadow-xs"
+                        onClick={() => {
+                          if (isPreviewable(file)) setPreviewItem(file);
+                          else handleDownload(file);
+                        }}
+                        className="h-24 w-full rounded-xl bg-slate-50 dark:bg-[#000000] flex items-center justify-center overflow-hidden cursor-pointer relative"
                       >
-                        {/* File preview thumbnail or icon */}
-                        <div
-                          onClick={() => {
-                            if (isPreviewable(file)) setPreviewItem(file);
-                            else handleDownload(file);
-                          }}
-                          className="h-24 w-full rounded-xl bg-slate-50 dark:bg-[#000000] flex items-center justify-center overflow-hidden cursor-pointer relative"
-                        >
-                          {isImg ? (
-                            <img
-                              src={`/api/v1/drive/items/${file.id}/download?inline=1`}
-                              alt={file.name}
-                              loading="lazy"
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="p-3">{getFileIcon(file)}</div>
-                          )}
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-                            <Eye className="h-5 w-5" />
-                          </div>
-                        </div>
-
-                        {/* File Info */}
-                        <div className="mt-2.5 min-w-0">
-                          <p
-                            className="text-xs font-bold text-slate-900 dark:text-white truncate"
-                            title={file.name}
-                          >
-                            {file.name}
-                          </p>
-                          <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span>{formatBytes(file.size_bytes)}</span>
-                            <span>{formatDate(file.created_at).split(',')[0]}</span>
-                          </div>
-                        </div>
-
-                        {/* Card Actions */}
-                        <div className="mt-3 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between">
-                          <button
-                            onClick={() => handleDownload(file)}
-                            title="Unduh"
-                            className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setRenameTarget(file);
-                              setNewName(file.name);
-                            }}
-                            title="Ganti Nama"
-                            className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(file)}
-                            title="Hapus"
-                            className="p-1 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        {isImg ? (
+                          <img
+                            src={`/api/v1/drive/items/${file.id}/download?inline=1`}
+                            alt={file.name}
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="p-3">{getFileIcon(file)}</div>
+                        )}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                          <Eye className="h-5 w-5" />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* List View (Table) */
-                <div className="overflow-hidden rounded-2xl border border-[#92B4EC] bg-white dark:border-[#1E3E62] dark:bg-[#0B192C]">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b border-[#92B4EC]/40 bg-slate-50/50 dark:border-[#1E3E62] dark:bg-[#000000] text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold">
-                        <tr>
-                          <th className="px-4 py-3">Nama Berkas</th>
-                          <th className="px-4 py-3">Ukuran</th>
-                          <th className="px-4 py-3">Tipe MIME</th>
-                          <th className="px-4 py-3">Tanggal Unggah</th>
-                          <th className="px-4 py-3 text-right">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#92B4EC]/30 dark:divide-[#1E3E62]/60">
-                        {files.map((file) => (
-                          <tr
-                            key={file.id}
-                            className="hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30 transition-colors"
+
+                      {/* File Info */}
+                      <div className="mt-2.5 min-w-0">
+                        <p
+                          className="text-xs font-bold text-slate-900 dark:text-white truncate"
+                          title={file.name}
+                        >
+                          {file.name}
+                        </p>
+                        <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                          <span>{formatBytes(file.size_bytes)}</span>
+                          <span>{formatDate(file.created_at).split(',')[0]}</span>
+                        </div>
+                      </div>
+
+                      {/* Card Actions */}
+                      <div className="mt-3 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between">
+                        <button
+                          onClick={() => handleDownload(file)}
+                          title="Unduh"
+                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRenameTarget(file);
+                            setNewName(file.name);
+                          }}
+                          title="Ganti Nama"
+                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(file)}
+                          title="Hapus"
+                          className="p-1 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* LIST VIEW (TABLE) FOR BOTH FOLDERS & FILES */}
+          {viewMode === 'list' && (folders.length > 0 || files.length > 0) && (
+            <div className="overflow-hidden rounded-2xl border border-[#92B4EC] bg-white dark:border-[#1E3E62] dark:bg-[#0B192C]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-[#92B4EC]/40 bg-slate-50/50 dark:border-[#1E3E62] dark:bg-[#000000] text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold">
+                    <tr>
+                      <th className="px-4 py-3">Nama Berkas / Folder</th>
+                      <th className="px-4 py-3">Space Digunakan</th>
+                      <th className="px-4 py-3">Tipe</th>
+                      <th className="px-4 py-3">Tanggal Unggah</th>
+                      <th className="px-4 py-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#92B4EC]/30 dark:divide-[#1E3E62]/60">
+                    {/* Folders Rows */}
+                    {folders.map((folder) => (
+                      <tr
+                        key={folder.id}
+                        className="hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30 transition-colors bg-[#FEA82F]/5 dark:bg-[#1E3E62]/10"
+                      >
+                        <td className="px-4 py-3">
+                          <div
+                            onClick={() => setCurrentFolderId(folder.id)}
+                            className="flex items-center gap-2.5 cursor-pointer group"
                           >
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2.5">
-                                <div className="shrink-0">{getFileIcon(file)}</div>
-                                <span
-                                  onClick={() => {
-                                    if (isPreviewable(file)) setPreviewItem(file);
-                                    else handleDownload(file);
-                                  }}
-                                  className="font-bold text-slate-900 dark:text-white hover:text-[#FF6701] dark:hover:text-[#FF6500] cursor-pointer truncate max-w-xs"
-                                >
-                                  {file.name}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
-                              {formatBytes(file.size_bytes)}
-                            </td>
-                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-[11px] truncate max-w-[150px]">
-                              {file.mime_type}
-                            </td>
-                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                              {formatDate(file.created_at)}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                {isPreviewable(file) && (
-                                  <button
-                                    onClick={() => setPreviewItem(file)}
-                                    title="Pratinjau"
-                                    className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleDownload(file)}
-                                  title="Unduh"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                                >
-                                  <Download className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setRenameTarget(file);
-                                    setNewName(file.name);
-                                  }}
-                                  title="Ganti Nama"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => setDeleteTarget(file)}
-                                  title="Hapus"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+                            <div className="shrink-0">
+                              <Folder className="h-5 w-5 text-[#FF6701] dark:text-[#FF6500]" fill="currentColor" />
+                            </div>
+                            <span className="font-bold text-slate-900 dark:text-white group-hover:text-[#FF6701] dark:group-hover:text-[#FF6500] truncate max-w-xs">
+                              {folder.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-mono font-bold text-[#FF6701] dark:text-[#FEA82F]">
+                          {formatBytes(folder.size_bytes)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300 font-semibold text-[11px]">
+                          Folder ({folder.item_count !== undefined ? `${folder.item_count} item` : '0 item'})
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                          {formatDate(folder.created_at)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleDownload(folder)}
+                              title="Download ZIP"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRenameTarget(folder);
+                                setNewName(folder.name);
+                              }}
+                              title="Ganti Nama"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(folder)}
+                              title="Hapus"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Files Rows */}
+                    {files.map((file) => (
+                      <tr
+                        key={file.id}
+                        className="hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30 transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="shrink-0">{getFileIcon(file)}</div>
+                            <span
+                              onClick={() => {
+                                if (isPreviewable(file)) setPreviewItem(file);
+                                else handleDownload(file);
+                              }}
+                              className="font-bold text-slate-900 dark:text-white hover:text-[#FF6701] dark:hover:text-[#FF6500] cursor-pointer truncate max-w-xs"
+                            >
+                              {file.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+                          {formatBytes(file.size_bytes)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-[11px] truncate max-w-[150px]">
+                          {file.mime_type}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                          {formatDate(file.created_at)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {isPreviewable(file) && (
+                              <button
+                                onClick={() => setPreviewItem(file)}
+                                title="Pratinjau"
+                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDownload(file)}
+                              title="Unduh"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRenameTarget(file);
+                                setNewName(file.name);
+                              }}
+                              title="Ganti Nama"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(file)}
+                              title="Hapus"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

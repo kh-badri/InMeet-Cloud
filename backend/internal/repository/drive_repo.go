@@ -44,7 +44,19 @@ func (r *DriveRepository) Create(ctx context.Context, item *model.DriveItem) err
 
 func (r *DriveRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*model.DriveItem, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, created_at, updated_at,
+		SELECT id, user_id, parent_id, name, type,
+		       CASE 
+		         WHEN d.type = 'folder' THEN (
+		           WITH RECURSIVE folder_tree AS (
+		             SELECT id, size_bytes FROM drive_items WHERE parent_id = d.id
+		             UNION ALL
+		             SELECT child.id, child.size_bytes FROM drive_items child JOIN folder_tree ON child.parent_id = folder_tree.id
+		           )
+		           SELECT COALESCE(SUM(size_bytes), 0) FROM folder_tree
+		         )
+		         ELSE d.size_bytes
+		       END AS size_bytes,
+		       mime_type, storage_path, created_at, updated_at,
 		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count
 		FROM drive_items d
 		WHERE id = $1 AND user_id = $2
@@ -69,27 +81,36 @@ func (r *DriveRepository) List(ctx context.Context, userID uuid.UUID, parentID *
 	var rows pgx.Rows
 	var err error
 
+	const selectColumns = `
+		SELECT id, user_id, parent_id, name, type,
+		       CASE 
+		         WHEN d.type = 'folder' THEN (
+		           WITH RECURSIVE folder_tree AS (
+		             SELECT id, size_bytes FROM drive_items WHERE parent_id = d.id
+		             UNION ALL
+		             SELECT child.id, child.size_bytes FROM drive_items child JOIN folder_tree ON child.parent_id = folder_tree.id
+		           )
+		           SELECT COALESCE(SUM(size_bytes), 0) FROM folder_tree
+		         )
+		         ELSE d.size_bytes
+		       END AS size_bytes,
+		       mime_type, storage_path, created_at, updated_at,
+		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count
+		FROM drive_items d
+	`
+
 	if query != "" {
-		rows, err = r.pool.Query(ctx, `
-			SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, created_at, updated_at,
-			       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count
-			FROM drive_items d
+		rows, err = r.pool.Query(ctx, selectColumns+`
 			WHERE user_id = $1 AND name ILIKE '%' || $2 || '%'
 			ORDER BY type DESC, name ASC
 		`, userID, query)
 	} else if parentID == nil {
-		rows, err = r.pool.Query(ctx, `
-			SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, created_at, updated_at,
-			       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count
-			FROM drive_items d
+		rows, err = r.pool.Query(ctx, selectColumns+`
 			WHERE user_id = $1 AND parent_id IS NULL
 			ORDER BY type DESC, name ASC
 		`, userID)
 	} else {
-		rows, err = r.pool.Query(ctx, `
-			SELECT id, user_id, parent_id, name, type, size_bytes, mime_type, storage_path, created_at, updated_at,
-			       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count
-			FROM drive_items d
+		rows, err = r.pool.Query(ctx, selectColumns+`
 			WHERE user_id = $1 AND parent_id = $2
 			ORDER BY type DESC, name ASC
 		`, userID, *parentID)
