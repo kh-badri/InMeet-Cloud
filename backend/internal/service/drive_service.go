@@ -27,15 +27,23 @@ var (
 )
 
 type DriveService struct {
-	repo    *repository.DriveRepository
-	baseDir string
+	repo      *repository.DriveRepository
+	baseDir   string
+	auditRepo *repository.AuditRepository
 }
 
-func NewDriveService(repo *repository.DriveRepository, baseDir string) *DriveService {
+func NewDriveService(repo *repository.DriveRepository, baseDir string, auditRepo *repository.AuditRepository) *DriveService {
 	_ = os.MkdirAll(baseDir, 0750)
 	return &DriveService{
-		repo:    repo,
-		baseDir: filepath.Clean(baseDir),
+		repo:      repo,
+		baseDir:   filepath.Clean(baseDir),
+		auditRepo: auditRepo,
+	}
+}
+
+func (s *DriveService) LogAudit(ctx context.Context, userID uuid.UUID, action, targetID string, details map[string]interface{}) {
+	if s.auditRepo != nil {
+		_ = s.auditRepo.LogCtx(ctx, "user", userID.String(), action, "drive", targetID, details)
 	}
 }
 
@@ -112,6 +120,16 @@ func (s *DriveService) CreateFolder(ctx context.Context, userID uuid.UUID, paren
 
 	zero := 0
 	item.ItemCount = &zero
+
+	parentStr := "root"
+	if parentID != nil {
+		parentStr = parentID.String()
+	}
+	s.LogAudit(ctx, userID, "drive_folder_created", item.ID.String(), map[string]interface{}{
+		"name":      cleanName,
+		"parent_id": parentStr,
+	})
+
 	return item, nil
 }
 
@@ -205,6 +223,17 @@ func (s *DriveService) UploadFile(
 		return nil, fmt.Errorf("gagal mencatat berkas di basis data: %w", err)
 	}
 
+	parentStr := "root"
+	if effectiveParentID != nil {
+		parentStr = effectiveParentID.String()
+	}
+	s.LogAudit(ctx, userID, "drive_file_uploaded", item.ID.String(), map[string]interface{}{
+		"name":       cleanFilename,
+		"size_bytes": size,
+		"mime_type":  mimeType,
+		"parent_id":  parentStr,
+	})
+
 	return item, nil
 }
 
@@ -214,7 +243,22 @@ func (s *DriveService) GetItem(ctx context.Context, userID uuid.UUID, id uuid.UU
 
 // DeleteItem moves item to trash quarantine (keeps files on disk for 7 days)
 func (s *DriveService) DeleteItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
-	return s.repo.MoveToTrash(ctx, id, userID)
+	item, _ := s.repo.GetByID(ctx, id, userID)
+	if err := s.repo.MoveToTrash(ctx, id, userID); err != nil {
+		return err
+	}
+	itemName := ""
+	itemType := "file"
+	if item != nil {
+		itemName = item.Name
+		itemType = string(item.Type)
+	}
+	s.LogAudit(ctx, userID, "drive_item_trashed", id.String(), map[string]interface{}{
+		"name":            itemName,
+		"type":            itemType,
+		"quarantine_days": 7,
+	})
+	return nil
 }
 
 // ListTrash returns all items in trash quarantine for the user
@@ -224,7 +268,21 @@ func (s *DriveService) ListTrash(ctx context.Context, userID uuid.UUID) ([]*mode
 
 // RestoreItem restores a trashed item and its descendants back to active drive
 func (s *DriveService) RestoreItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
-	return s.repo.RestoreFromTrash(ctx, id, userID)
+	item, _ := s.repo.GetByID(ctx, id, userID)
+	if err := s.repo.RestoreFromTrash(ctx, id, userID); err != nil {
+		return err
+	}
+	itemName := ""
+	itemType := "file"
+	if item != nil {
+		itemName = item.Name
+		itemType = string(item.Type)
+	}
+	s.LogAudit(ctx, userID, "drive_item_restored", id.String(), map[string]interface{}{
+		"name": itemName,
+		"type": itemType,
+	})
+	return nil
 }
 
 // PermanentDeleteItem permanently removes item and its files from disk and database
@@ -247,7 +305,15 @@ func (s *DriveService) PermanentDeleteItem(ctx context.Context, userID uuid.UUID
 		_ = os.Remove(item.StoragePath)
 	}
 
-	return s.repo.DeletePermanent(ctx, id, userID)
+	if err := s.repo.DeletePermanent(ctx, id, userID); err != nil {
+		return err
+	}
+
+	s.LogAudit(ctx, userID, "drive_item_permanently_deleted", id.String(), map[string]interface{}{
+		"name": item.Name,
+		"type": item.Type,
+	})
+	return nil
 }
 
 // EmptyTrash permanently removes all trashed items for user
@@ -260,7 +326,13 @@ func (s *DriveService) EmptyTrash(ctx context.Context, userID uuid.UUID) error {
 			}
 		}
 	}
-	return s.repo.EmptyTrash(ctx, userID)
+	if err := s.repo.EmptyTrash(ctx, userID); err != nil {
+		return err
+	}
+	s.LogAudit(ctx, userID, "drive_trash_emptied", "", map[string]interface{}{
+		"items_count": len(trashed),
+	})
+	return nil
 }
 
 // PurgeExpiredTrash is called by daily cron to permanently purge files trashed > 7 days ago
@@ -273,7 +345,12 @@ func (s *DriveService) PurgeExpiredTrash(ctx context.Context, olderThan time.Tim
 			}
 		}
 	}
-	_, err = s.repo.PurgeExpiredTrash(ctx, olderThan)
+	purgedCount, err := s.repo.PurgeExpiredTrash(ctx, olderThan)
+	if err == nil && purgedCount > 0 && s.auditRepo != nil {
+		_ = s.auditRepo.Log(ctx, "system", "cron", "system@backupvault", "drive_trash_purged", "drive", "", "127.0.0.1", "cron", map[string]interface{}{
+			"purged_count": purgedCount,
+		})
+	}
 	return err
 }
 
@@ -282,7 +359,22 @@ func (s *DriveService) RenameItem(ctx context.Context, userID uuid.UUID, id uuid
 	if cleanName == "" || strings.Contains(cleanName, "/") || strings.Contains(cleanName, "\\") {
 		return ErrInvalidItemName
 	}
-	return s.repo.Rename(ctx, id, userID, cleanName)
+	item, _ := s.repo.GetByID(ctx, id, userID)
+	if err := s.repo.Rename(ctx, id, userID, cleanName); err != nil {
+		return err
+	}
+	oldName := ""
+	itemType := "file"
+	if item != nil {
+		oldName = item.Name
+		itemType = string(item.Type)
+	}
+	s.LogAudit(ctx, userID, "drive_item_renamed", id.String(), map[string]interface{}{
+		"old_name": oldName,
+		"new_name": cleanName,
+		"type":     itemType,
+	})
+	return nil
 }
 
 func (s *DriveService) ZipFolder(ctx context.Context, userID uuid.UUID, folderID uuid.UUID, w http.ResponseWriter) error {
@@ -386,7 +478,20 @@ func (s *DriveService) MoveItem(ctx context.Context, userID uuid.UUID, id uuid.U
 		}
 	}
 
-	return s.repo.Move(ctx, id, userID, targetParentID)
+	if err := s.repo.Move(ctx, id, userID, targetParentID); err != nil {
+		return err
+	}
+
+	targetStr := "root"
+	if targetParentID != nil {
+		targetStr = targetParentID.String()
+	}
+	s.LogAudit(ctx, userID, "drive_item_moved", id.String(), map[string]interface{}{
+		"name":             item.Name,
+		"type":             item.Type,
+		"target_parent_id": targetStr,
+	})
+	return nil
 }
 
 func (s *DriveService) ListAllFolders(ctx context.Context, userID uuid.UUID) ([]*model.DriveFolderTreeItem, error) {
@@ -601,6 +706,18 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UU
 	}
 
 	_ = s.repo.SetUploadSessionStatus(ctx, uploadID, userID, model.DriveUploadSessionCompleted)
+
+	parentStr := "root"
+	if effectiveParentID != nil {
+		parentStr = effectiveParentID.String()
+	}
+	s.LogAudit(ctx, userID, "drive_file_uploaded", item.ID.String(), map[string]interface{}{
+		"name":       cleanFilename,
+		"size_bytes": stat.Size(),
+		"mime_type":  mimeType,
+		"parent_id":  parentStr,
+		"method":     "chunked_resumable_upload",
+	})
 
 	return item, nil
 }

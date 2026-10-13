@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"backupvault/internal/model"
@@ -39,13 +40,29 @@ func (r *AuditRepository) Log(ctx context.Context, actorType, actorID, actorEmai
 	return err
 }
 
+// LogCtx records an audit event using the request-scoped AuditMeta from ctx (actor email, IP, user agent)
+func (r *AuditRepository) LogCtx(ctx context.Context, actorType, actorID, action, targetType, targetID string, details map[string]interface{}) error {
+	meta := model.GetAuditMeta(ctx)
+	email := meta.UserEmail
+	if actorType == "system" && email == "" {
+		email = "system@backupvault"
+	}
+	ip := meta.IP
+	if ip == "" {
+		ip = "127.0.0.1"
+	}
+	return r.Log(ctx, actorType, actorID, email, action, targetType, targetID, ip, meta.UserAgent, details)
+}
+
 type AuditFilter struct {
-	Action   string
-	ActorID  string
-	DateFrom *time.Time
-	DateTo   *time.Time
-	Limit    int
-	Offset   int
+	Action     string
+	ActorID    string
+	TargetType string
+	Query      string
+	DateFrom   *time.Time
+	DateTo     *time.Time
+	Limit      int
+	Offset     int
 }
 
 func (r *AuditRepository) List(ctx context.Context, f AuditFilter) ([]model.AuditLog, int64, error) {
@@ -68,6 +85,17 @@ func (r *AuditRepository) List(ctx context.Context, f AuditFilter) ([]model.Audi
 	if f.ActorID != "" {
 		query += fmt.Sprintf(" AND actor_id = $%d", argIdx)
 		args = append(args, f.ActorID)
+		argIdx++
+	}
+	if f.TargetType != "" {
+		query += fmt.Sprintf(" AND target_type = $%d", argIdx)
+		args = append(args, f.TargetType)
+		argIdx++
+	}
+	if f.Query != "" {
+		searchTerm := "%" + strings.ToLower(f.Query) + "%"
+		query += fmt.Sprintf(" AND (LOWER(action) LIKE $%d OR LOWER(actor_email) LIKE $%d OR LOWER(ip_address) LIKE $%d OR LOWER(target_id) LIKE $%d OR LOWER(details::text) LIKE $%d)", argIdx, argIdx, argIdx, argIdx, argIdx)
+		args = append(args, searchTerm)
 		argIdx++
 	}
 	if f.DateFrom != nil {

@@ -161,3 +161,17 @@ func GetClientIP(r *http.Request) string {
 	}
 	return ip
 }
+
+func AuditMetaMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user := GetCurrentUser(r.Context())
+			email := ""
+			if user != nil {
+				email = user.Email
+			}
+			ctx := model.WithAuditMeta(r.Context(), email, GetClientIP(r), r.UserAgent())
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}

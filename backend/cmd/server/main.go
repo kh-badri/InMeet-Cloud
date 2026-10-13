@@ -98,7 +98,7 @@ func main() {
 	appService := service.NewAppService(appRepo, apiKeyRepo, auditRepo)
 	uploadService := service.NewUploadService(localStorage, uploadRepo, backupRepo, auditRepo)
 	backupService := service.NewBackupService(localStorage, backupRepo, tokenRepo, auditRepo, authService)
-	driveService := service.NewDriveService(driveRepo, cfg.DriveStoragePath)
+	driveService := service.NewDriveService(driveRepo, cfg.DriveStoragePath, auditRepo)
 	cronScheduler.SetDriveTrashPurger(driveService)
 
 	// 8. Initialize handlers
@@ -135,6 +135,7 @@ func main() {
 	r.Use(security.RateLimitMiddleware(apiLimiter))
 
 	r.Use(handler.AuthMiddleware(authService))
+	r.Use(handler.AuditMetaMiddleware())
 	r.Use(handler.CSRFMiddleware())
 
 	// Health check

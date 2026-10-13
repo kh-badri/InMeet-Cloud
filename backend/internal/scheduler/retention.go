@@ -215,6 +215,15 @@ func (m *RetentionManager) Run(ctx context.Context, evalTime time.Time, isDryRun
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, run.ID, run.TriggeredAt, run.CompletedAt, run.ItemsQuarantined, run.ItemsDeleted, run.BytesFreed, run.IsDryRun, run.Status, detailsJSON)
 
+	if m.auditRepo != nil {
+		_ = m.auditRepo.Log(ctx, "system", "cron", "system@backupvault", "retention_run_completed", "retention", run.ID.String(), "127.0.0.1", "cron", map[string]interface{}{
+			"items_quarantined": quarantinedCount,
+			"items_deleted":     deletedCount,
+			"bytes_freed":       bytesFreed,
+			"is_dry_run":        isDryRun,
+		})
+	}
+
 	// Dispatch notification
 	notifTitle := fmt.Sprintf("Job Retensi Selesai (%s)", map[bool]string{true: "Dry-Run", false: "Live"}[isDryRun])
 	notifMsg := fmt.Sprintf("File dikarantina: %d\nFile dihapus permanen: %d\nRuang dibebaskan: %s",

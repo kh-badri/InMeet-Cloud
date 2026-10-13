@@ -38,8 +38,10 @@ func (h *StatsHandler) HandleGetAudit(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	filter := repository.AuditFilter{
-		Action:  q.Get("action"),
-		ActorID: q.Get("actor_id"),
+		Action:     q.Get("action"),
+		ActorID:    q.Get("actor_id"),
+		TargetType: q.Get("target_type"),
+		Query:      q.Get("q"),
 	}
 
 	if fromStr := q.Get("date_from"); fromStr != "" {

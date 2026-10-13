@@ -152,6 +152,12 @@ func (h *DriveHandler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.driveService.LogAudit(r.Context(), user.ID, "drive_item_downloaded", item.ID.String(), map[string]interface{}{
+		"name":       item.Name,
+		"type":       item.Type,
+		"size_bytes": item.SizeBytes,
+	})
+
 	// Folder download -> streamed ZIP archive
 	if item.Type == model.DriveItemTypeFolder {
 		if err := h.driveService.ZipFolder(r.Context(), user.ID, item.ID, w); err != nil {
