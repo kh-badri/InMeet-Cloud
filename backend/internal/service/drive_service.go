@@ -20,8 +20,10 @@ import (
 )
 
 var (
-	ErrInvalidItemName = errors.New("nama berkas atau folder tidak valid")
-	ErrParentNotFound  = errors.New("folder induk tidak ditemukan")
+	ErrInvalidItemName     = errors.New("nama berkas atau folder tidak valid")
+	ErrParentNotFound      = errors.New("folder induk tidak ditemukan")
+	ErrInvalidDestination  = errors.New("folder tujuan tidak valid")
+	ErrCircularFolderMove  = errors.New("tidak dapat memindahkan folder ke dalam subfolder turunannya")
 )
 
 type DriveService struct {
@@ -311,3 +313,270 @@ func (s *DriveService) ZipFolder(ctx context.Context, userID uuid.UUID, folderID
 
 	return nil
 }
+
+func (s *DriveService) MoveItem(ctx context.Context, userID uuid.UUID, id uuid.UUID, targetParentID *uuid.UUID) error {
+	item, err := s.repo.GetByID(ctx, id, userID)
+	if err != nil {
+		return err
+	}
+
+	if targetParentID != nil {
+		if *targetParentID == id {
+			return errors.New("tidak dapat memindahkan item ke dalam dirinya sendiri")
+		}
+
+		target, err := s.repo.GetByID(ctx, *targetParentID, userID)
+		if err != nil {
+			return ErrInvalidDestination
+		}
+		if target.Type != model.DriveItemTypeFolder {
+			return errors.New("target tujuan harus berupa folder")
+		}
+
+		if item.Type == model.DriveItemTypeFolder {
+			isDescendant, err := s.repo.IsDescendant(ctx, userID, id, *targetParentID)
+			if err != nil {
+				return err
+			}
+			if isDescendant {
+				return ErrCircularFolderMove
+			}
+		}
+	}
+
+	return s.repo.Move(ctx, id, userID, targetParentID)
+}
+
+func (s *DriveService) ListAllFolders(ctx context.Context, userID uuid.UUID) ([]*model.DriveFolderTreeItem, error) {
+	return s.repo.ListAllFolders(ctx, userID)
+}
+
+func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, req *model.InitUploadRequest) (*model.InitUploadResponse, error) {
+	if req.TotalBytes <= 0 {
+		return nil, errors.New("ukuran berkas harus lebih besar dari 0")
+	}
+
+	chunkSize := req.ChunkSize
+	if chunkSize <= 0 {
+		chunkSize = 5 * 1024 * 1024 // 5MB default chunk
+	}
+	if chunkSize < 512*1024 {
+		chunkSize = 512 * 1024 // 512KB minimum
+	}
+	if chunkSize > 50*1024*1024 {
+		chunkSize = 50 * 1024 * 1024 // 50MB maximum
+	}
+
+	totalChunks := int((req.TotalBytes + int64(chunkSize) - 1) / int64(chunkSize))
+
+	cleanFilename := strings.TrimSpace(req.Filename)
+	if cleanFilename == "" {
+		cleanFilename = "unnamed_file"
+	}
+
+	uploadID := uuid.New()
+	tmpDir := filepath.Join(s.baseDir, "tmp", userID.String())
+	if err := os.MkdirAll(tmpDir, 0750); err != nil {
+		return nil, fmt.Errorf("gagal membuat direktori temporer: %w", err)
+	}
+
+	tempPath := filepath.Join(tmpDir, uploadID.String()+".part")
+	f, err := os.OpenFile(tempPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	if err != nil {
+		return nil, fmt.Errorf("gagal membuat berkas penampung: %w", err)
+	}
+	_ = f.Close()
+
+	session := &model.DriveUploadSession{
+		ID:             uploadID,
+		UserID:         userID,
+		ParentID:       req.ParentID,
+		Filename:       cleanFilename,
+		RelativePath:   req.RelativePath,
+		TotalBytes:     req.TotalBytes,
+		UploadedBytes:  0,
+		ChunkSize:      chunkSize,
+		TotalChunks:    totalChunks,
+		LastChunkIndex: -1,
+		MimeType:       req.MimeType,
+		TempPath:       tempPath,
+		Status:         model.DriveUploadSessionInProgress,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+
+	if err := s.repo.CreateUploadSession(ctx, session); err != nil {
+		_ = os.Remove(tempPath)
+		return nil, fmt.Errorf("gagal membuat sesi upload: %w", err)
+	}
+
+	return &model.InitUploadResponse{
+		UploadID:       uploadID,
+		TotalChunks:    totalChunks,
+		ChunkSize:      chunkSize,
+		UploadedBytes:  0,
+		LastChunkIndex: -1,
+	}, nil
+}
+
+func (s *DriveService) SaveChunk(ctx context.Context, userID uuid.UUID, uploadID uuid.UUID, chunkIndex int, r io.Reader) (int64, error) {
+	session, err := s.repo.GetUploadSession(ctx, uploadID, userID)
+	if err != nil {
+		return 0, err
+	}
+	if session.Status != model.DriveUploadSessionInProgress {
+		return 0, errors.New("sesi upload sudah tidak aktif")
+	}
+	if chunkIndex < 0 || chunkIndex >= session.TotalChunks {
+		return 0, fmt.Errorf("indeks chunk %d di luar batas (total: %d)", chunkIndex, session.TotalChunks)
+	}
+
+	f, err := os.OpenFile(session.TempPath, os.O_WRONLY, 0640)
+	if err != nil {
+		return 0, fmt.Errorf("gagal membuka berkas sementara: %w", err)
+	}
+	defer f.Close()
+
+	offset := int64(chunkIndex) * int64(session.ChunkSize)
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		return 0, fmt.Errorf("gagal mengatur offset berkas: %w", err)
+	}
+
+	written, err := io.Copy(f, r)
+	if err != nil {
+		return 0, fmt.Errorf("gagal menulis chunk berkas: %w", err)
+	}
+
+	newUploadedBytes := session.UploadedBytes
+	if chunkIndex > session.LastChunkIndex {
+		newUploadedBytes += written
+		if newUploadedBytes > session.TotalBytes {
+			newUploadedBytes = session.TotalBytes
+		}
+	}
+
+	lastIndex := session.LastChunkIndex
+	if chunkIndex > lastIndex {
+		lastIndex = chunkIndex
+	}
+
+	if err := s.repo.UpdateUploadSessionProgress(ctx, uploadID, userID, newUploadedBytes, lastIndex); err != nil {
+		return 0, err
+	}
+
+	return newUploadedBytes, nil
+}
+
+func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UUID, uploadID uuid.UUID) (*model.DriveItem, error) {
+	session, err := s.repo.GetUploadSession(ctx, uploadID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if session.Status != model.DriveUploadSessionInProgress {
+		return nil, errors.New("sesi upload sudah tidak aktif")
+	}
+
+	stat, err := os.Stat(session.TempPath)
+	if err != nil {
+		return nil, fmt.Errorf("berkas sementara tidak ditemukan: %w", err)
+	}
+
+	effectiveParentID := session.ParentID
+	targetFilename := session.Filename
+
+	cleanedRel := filepath.ToSlash(filepath.Clean(session.RelativePath))
+	if cleanedRel != "" && cleanedRel != "." && !strings.HasPrefix(cleanedRel, "../") {
+		parts := strings.Split(cleanedRel, "/")
+		if len(parts) > 1 {
+			targetFilename = parts[len(parts)-1]
+			for i := 0; i < len(parts)-1; i++ {
+				folderName := strings.TrimSpace(parts[i])
+				if folderName == "" || folderName == "." {
+					continue
+				}
+				folder, err := s.CreateFolder(ctx, userID, effectiveParentID, folderName)
+				if err != nil {
+					return nil, fmt.Errorf("gagal membuat struktur folder %s: %w", folderName, err)
+				}
+				folderID := folder.ID
+				effectiveParentID = &folderID
+			}
+		}
+	}
+
+	cleanFilename := strings.TrimSpace(targetFilename)
+	if cleanFilename == "" {
+		cleanFilename = "unnamed_file"
+	}
+
+	mimeType := session.MimeType
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		ext := filepath.Ext(cleanFilename)
+		if detected := mime.TypeByExtension(ext); detected != "" {
+			mimeType = detected
+		} else {
+			mimeType = "application/octet-stream"
+		}
+	}
+
+	itemID := uuid.New()
+	userDir := filepath.Join(s.baseDir, userID.String())
+	_ = os.MkdirAll(userDir, 0750)
+
+	storagePath := filepath.Join(userDir, itemID.String())
+
+	if err := os.Rename(session.TempPath, storagePath); err != nil {
+		src, err := os.Open(session.TempPath)
+		if err != nil {
+			return nil, fmt.Errorf("gagal membuka berkas sumber: %w", err)
+		}
+		dst, err := os.OpenFile(storagePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0640)
+		if err != nil {
+			src.Close()
+			return nil, fmt.Errorf("gagal membuka target berkas: %w", err)
+		}
+		_, copyErr := io.Copy(dst, src)
+		src.Close()
+		dst.Close()
+		if copyErr != nil {
+			_ = os.Remove(storagePath)
+			return nil, fmt.Errorf("gagal menyalin berkas: %w", copyErr)
+		}
+		_ = os.Remove(session.TempPath)
+	}
+
+	item := &model.DriveItem{
+		ID:          itemID,
+		UserID:      userID,
+		ParentID:    effectiveParentID,
+		Name:        cleanFilename,
+		Type:        model.DriveItemTypeFile,
+		SizeBytes:   stat.Size(),
+		MimeType:    mimeType,
+		StoragePath: storagePath,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := s.repo.Create(ctx, item); err != nil {
+		_ = os.Remove(storagePath)
+		return nil, fmt.Errorf("gagal mencatat berkas di basis data: %w", err)
+	}
+
+	_ = s.repo.SetUploadSessionStatus(ctx, uploadID, userID, model.DriveUploadSessionCompleted)
+
+	return item, nil
+}
+
+func (s *DriveService) GetActiveUploadSessions(ctx context.Context, userID uuid.UUID) ([]*model.DriveUploadSession, error) {
+	return s.repo.ListActiveUploadSessions(ctx, userID)
+}
+
+func (s *DriveService) AbortUploadSession(ctx context.Context, userID uuid.UUID, uploadID uuid.UUID) error {
+	session, err := s.repo.GetUploadSession(ctx, uploadID, userID)
+	if err == nil && session.TempPath != "" {
+		_ = os.Remove(session.TempPath)
+	}
+	return s.repo.SetUploadSessionStatus(ctx, uploadID, userID, model.DriveUploadSessionAborted)
+}
+

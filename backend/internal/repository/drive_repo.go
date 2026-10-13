@@ -269,3 +269,140 @@ func (r *DriveRepository) GetStats(ctx context.Context, userID uuid.UUID) (int, 
 	err := row.Scan(&count, &totalBytes)
 	return count, totalBytes, err
 }
+
+func (r *DriveRepository) Move(ctx context.Context, id uuid.UUID, userID uuid.UUID, newParentID *uuid.UUID) error {
+	cmd, err := r.pool.Exec(ctx, `
+		UPDATE drive_items SET parent_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3
+	`, newParentID, id, userID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return ErrDriveItemNotFound
+	}
+	return nil
+}
+
+func (r *DriveRepository) IsDescendant(ctx context.Context, userID uuid.UUID, rootID uuid.UUID, targetID uuid.UUID) (bool, error) {
+	row := r.pool.QueryRow(ctx, `
+		WITH RECURSIVE item_tree AS (
+			SELECT id, parent_id FROM drive_items WHERE id = $1 AND user_id = $2
+			UNION ALL
+			SELECT c.id, c.parent_id FROM drive_items c JOIN item_tree ON c.parent_id = item_tree.id
+			WHERE c.user_id = $2
+		)
+		SELECT EXISTS(SELECT 1 FROM item_tree WHERE id = $3);
+	`, rootID, userID, targetID)
+
+	var isDescendant bool
+	err := row.Scan(&isDescendant)
+	return isDescendant, err
+}
+
+func (r *DriveRepository) ListAllFolders(ctx context.Context, userID uuid.UUID) ([]*model.DriveFolderTreeItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, parent_id, name
+		FROM drive_items
+		WHERE user_id = $1 AND type = 'folder'
+		ORDER BY name ASC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var folders []*model.DriveFolderTreeItem
+	for rows.Next() {
+		var item model.DriveFolderTreeItem
+		if err := rows.Scan(&item.ID, &item.ParentID, &item.Name); err != nil {
+			return nil, err
+		}
+		folders = append(folders, &item)
+	}
+	return folders, nil
+}
+
+func (r *DriveRepository) CreateUploadSession(ctx context.Context, session *model.DriveUploadSession) error {
+	if session.ID == uuid.Nil {
+		session.ID = uuid.New()
+	}
+	if session.CreatedAt.IsZero() {
+		session.CreatedAt = time.Now()
+	}
+	if session.UpdatedAt.IsZero() {
+		session.UpdatedAt = session.CreatedAt
+	}
+
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO drive_upload_sessions (
+			id, user_id, parent_id, filename, relative_path, total_bytes, uploaded_bytes,
+			chunk_size, total_chunks, last_chunk_index, mime_type, temp_path, status, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, session.ID, session.UserID, session.ParentID, session.Filename, session.RelativePath, session.TotalBytes, session.UploadedBytes,
+		session.ChunkSize, session.TotalChunks, session.LastChunkIndex, session.MimeType, session.TempPath, session.Status, session.CreatedAt, session.UpdatedAt)
+	return err
+}
+
+func (r *DriveRepository) GetUploadSession(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*model.DriveUploadSession, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT id, user_id, parent_id, filename, relative_path, total_bytes, uploaded_bytes,
+		       chunk_size, total_chunks, last_chunk_index, mime_type, temp_path, status, created_at, updated_at
+		FROM drive_upload_sessions
+		WHERE id = $1 AND user_id = $2
+	`, id, userID)
+
+	var s model.DriveUploadSession
+	err := row.Scan(&s.ID, &s.UserID, &s.ParentID, &s.Filename, &s.RelativePath, &s.TotalBytes, &s.UploadedBytes,
+		&s.ChunkSize, &s.TotalChunks, &s.LastChunkIndex, &s.MimeType, &s.TempPath, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrDriveItemNotFound
+		}
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *DriveRepository) UpdateUploadSessionProgress(ctx context.Context, id uuid.UUID, userID uuid.UUID, uploadedBytes int64, lastChunkIndex int) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE drive_upload_sessions
+		SET uploaded_bytes = $1, last_chunk_index = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $3 AND user_id = $4
+	`, uploadedBytes, lastChunkIndex, id, userID)
+	return err
+}
+
+func (r *DriveRepository) SetUploadSessionStatus(ctx context.Context, id uuid.UUID, userID uuid.UUID, status model.DriveUploadSessionStatus) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE drive_upload_sessions
+		SET status = $1, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $2 AND user_id = $3
+	`, status, id, userID)
+	return err
+}
+
+func (r *DriveRepository) ListActiveUploadSessions(ctx context.Context, userID uuid.UUID) ([]*model.DriveUploadSession, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, user_id, parent_id, filename, relative_path, total_bytes, uploaded_bytes,
+		       chunk_size, total_chunks, last_chunk_index, mime_type, temp_path, status, created_at, updated_at
+		FROM drive_upload_sessions
+		WHERE user_id = $1 AND status = 'in_progress' AND updated_at > NOW() - INTERVAL '24 hours'
+		ORDER BY updated_at DESC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []*model.DriveUploadSession
+	for rows.Next() {
+		var s model.DriveUploadSession
+		err := rows.Scan(&s.ID, &s.UserID, &s.ParentID, &s.Filename, &s.RelativePath, &s.TotalBytes, &s.UploadedBytes,
+			&s.ChunkSize, &s.TotalChunks, &s.LastChunkIndex, &s.MimeType, &s.TempPath, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, &s)
+	}
+	return sessions, nil
+}

@@ -210,3 +210,61 @@ type DriveListResponse struct {
 	TotalBytes    int64             `json:"total_bytes"`
 }
 
+type MoveDriveItemRequest struct {
+	TargetParentID *uuid.UUID `json:"target_parent_id"`
+}
+
+type DriveFolderTreeItem struct {
+	ID       uuid.UUID  `json:"id"`
+	ParentID *uuid.UUID `json:"parent_id"`
+	Name     string     `json:"name"`
+}
+
+type DriveUploadSessionStatus string
+
+const (
+	DriveUploadSessionInProgress DriveUploadSessionStatus = "in_progress"
+	DriveUploadSessionCompleted  DriveUploadSessionStatus = "completed"
+	DriveUploadSessionAborted    DriveUploadSessionStatus = "aborted"
+)
+
+type DriveUploadSession struct {
+	ID             uuid.UUID                `json:"id"`
+	UserID         uuid.UUID                `json:"user_id"`
+	ParentID       *uuid.UUID               `json:"parent_id"`
+	Filename       string                   `json:"filename"`
+	RelativePath   string                   `json:"relative_path"`
+	TotalBytes     int64                    `json:"total_bytes"`
+	UploadedBytes  int64                    `json:"uploaded_bytes"`
+	ChunkSize      int                      `json:"chunk_size"`
+	TotalChunks    int                      `json:"total_chunks"`
+	LastChunkIndex int                      `json:"last_chunk_index"`
+	MimeType       string                   `json:"mime_type"`
+	TempPath       string                   `json:"-"`
+	Status         DriveUploadSessionStatus `json:"status"`
+	CreatedAt      time.Time                `json:"created_at"`
+	UpdatedAt      time.Time                `json:"updated_at"`
+}
+
+type InitUploadRequest struct {
+	Filename     string     `json:"filename"`
+	RelativePath string     `json:"relative_path"`
+	TotalBytes   int64      `json:"total_bytes"`
+	ChunkSize    int        `json:"chunk_size"`
+	ParentID     *uuid.UUID `json:"parent_id"`
+	MimeType     string     `json:"mime_type"`
+}
+
+type InitUploadResponse struct {
+	UploadID       uuid.UUID `json:"upload_id"`
+	TotalChunks    int       `json:"total_chunks"`
+	ChunkSize      int       `json:"chunk_size"`
+	UploadedBytes  int64     `json:"uploaded_bytes"`
+	LastChunkIndex int       `json:"last_chunk_index"`
+}
+
+type CompleteUploadRequest struct {
+	UploadID uuid.UUID `json:"upload_id"`
+}
+
+

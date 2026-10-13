@@ -1,18 +1,64 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, formatBytes, formatDate } from '../lib/api';
-import { DriveItem, DriveListResponse } from '../types';
+import { DriveItem, DriveListResponse, DriveFolderTreeItem } from '../types';
+import { useDriveUpload } from '../context/DriveUploadContext';
 import { Modal } from '../components/Modal';
 import {
   Folder, FolderPlus, Upload, File, FileText, FileArchive,
   FileCode, Image as ImageIcon, Film, Music, Search,
   Grid, List, Trash2, Download, Edit3, ChevronRight,
   ArrowLeft, Home, RefreshCw, Eye, HardDrive,
-  FolderArchive, Check, AlertCircle
+  FolderArchive, Check, AlertCircle, FolderSymlink, MoveRight
 } from 'lucide-react';
+
+interface HierarchicalFolder {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  depth: number;
+  isDisabled: boolean;
+}
+
+function buildFolderHierarchy(
+  folders: DriveFolderTreeItem[],
+  moveTarget: DriveItem | null
+): HierarchicalFolder[] {
+  const forbiddenIds = new Set<string>();
+  if (moveTarget && moveTarget.type === 'folder') {
+    forbiddenIds.add(moveTarget.id);
+    const queue = [moveTarget.id];
+    while (queue.length > 0) {
+      const parentId = queue.shift()!;
+      const children = folders.filter((f) => f.parent_id === parentId);
+      for (const child of children) {
+        forbiddenIds.add(child.id);
+        queue.push(child.id);
+      }
+    }
+  }
+
+  const result: HierarchicalFolder[] = [];
+  function traverse(parentId: string | null, depth: number) {
+    const children = folders.filter((f) => f.parent_id === parentId);
+    for (const child of children) {
+      result.push({
+        id: child.id,
+        name: child.name,
+        parent_id: child.parent_id,
+        depth,
+        isDisabled: forbiddenIds.has(child.id),
+      });
+      traverse(child.id, depth + 1);
+    }
+  }
+  traverse(null, 0);
+  return result;
+}
 
 export const DrivePage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { startUpload } = useDriveUpload();
 
   // Navigation State
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -27,10 +73,10 @@ export const DrivePage: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DriveItem | null>(null);
   const [previewItem, setPreviewItem] = useState<DriveItem | null>(null);
+  const [moveTarget, setMoveTarget] = useState<DriveItem | null>(null);
+  const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
 
   // Upload state
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ total: number; done: number; currentName: string } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -130,57 +176,45 @@ export const DrivePage: React.FC = () => {
     },
   });
 
-  // Helper to upload list of files
+  // Fetch all user folders for destination picker
+  const { data: allFolders } = useQuery<DriveFolderTreeItem[]>({
+    queryKey: ['drive-folders'],
+    queryFn: () => apiRequest<DriveFolderTreeItem[]>('/api/v1/drive/folders'),
+    enabled: !!moveTarget,
+  });
+
+  // Move Item Mutation
+  const moveMutation = useMutation({
+    mutationFn: ({ id, targetParentId }: { id: string; targetParentId: string | null }) => {
+      return apiRequest(`/api/v1/drive/items/${id}/move`, {
+        method: 'POST',
+        body: JSON.stringify({ target_parent_id: targetParentId }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      setMoveTarget(null);
+      setActionSuccess('Item berhasil dipindahkan!');
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal memindahkan item');
+    },
+  });
+
+  const openMoveModal = (item: DriveItem) => {
+    setMoveTarget(item);
+    setSelectedDestinationId(item.parent_id);
+  };
+
+  // Helper to upload list of files using the background chunked resumable upload engine
   const handleUploadFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
-    setIsUploading(true);
     setActionError(null);
-
-    const total = files.length;
-    let done = 0;
-
-    try {
-      for (let i = 0; i < total; i++) {
-        const file = files[i];
-        setUploadProgress({
-          total,
-          done,
-          currentName: file.name,
-        });
-
-        const formData = new FormData();
-        formData.append('file', file);
-        if (currentFolderId) {
-          formData.append('parent_id', currentFolderId);
-        }
-
-        // Check if file has relative path from folder upload
-        const relPath = (file as any).webkitRelativePath || file.name;
-        formData.append('relative_path', relPath);
-
-        await apiRequest('/api/v1/drive/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        done++;
-        setUploadProgress({
-          total,
-          done,
-          currentName: file.name,
-        });
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['drive-items'] });
-      setActionSuccess(`Berhasil mengunggah ${total} berkas!`);
-    } catch (err: any) {
-      setActionError(err.message || 'Terjadi kesalahan saat mengunggah berkas');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      if (folderInputRef.current) folderInputRef.current.value = '';
-    }
+    const currentFolderName = data?.current_folder?.name || (currentFolderId ? 'Folder' : 'Drive Saya');
+    await startUpload(files, currentFolderId, currentFolderName);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (folderInputRef.current) folderInputRef.current.value = '';
   };
 
   // Drag and drop handlers
@@ -310,34 +344,6 @@ export const DrivePage: React.FC = () => {
         </div>
       )}
 
-      {/* Upload Progress Banner */}
-      {isUploading && uploadProgress && (
-        <div className="rounded-2xl border border-[#92B4EC] bg-white p-4 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] animate-fade-in">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF6701] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#FF6701] dark:bg-[#FF6500]" />
-              </span>
-              <span className="text-xs font-bold text-slate-900 dark:text-white">
-                Mengunggah Berkas ({uploadProgress.done + 1}/{uploadProgress.total})
-              </span>
-            </div>
-            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-xs">
-              {uploadProgress.currentName}
-            </span>
-          </div>
-          <div className="h-2 w-full rounded-full bg-[#92B4EC]/30 dark:bg-[#1E3E62] overflow-hidden">
-            <div
-              className="h-full bg-[#FF6701] dark:bg-[#FF6500] transition-all duration-200"
-              style={{
-                width: `${Math.round(((uploadProgress.done) / uploadProgress.total) * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Header and Toolbar Bento Box */}
       <div className="rounded-2xl border border-[#92B4EC] bg-white p-5 shadow-xs dark:border-[#1E3E62] dark:bg-[#0B192C]">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -373,8 +379,7 @@ export const DrivePage: React.FC = () => {
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white dark:hover:bg-[#FF6701] transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white dark:hover:bg-[#FF6701] transition-colors"
             >
               <Upload className="h-4 w-4 text-white" />
               <span>Unggah Berkas</span>
@@ -382,8 +387,7 @@ export const DrivePage: React.FC = () => {
 
             <button
               onClick={() => folderInputRef.current?.click()}
-              disabled={isUploading}
-              className="flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-[#FF6701]/10 px-3 py-2 text-xs font-bold text-[#FF6701] hover:bg-[#FF6701] hover:text-white dark:border-[#FF6500]/40 dark:bg-[#1E3E62]/60 dark:text-[#FF6500] dark:hover:bg-[#FF6500] dark:hover:text-white transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-[#FF6701]/10 px-3 py-2 text-xs font-bold text-[#FF6701] hover:bg-[#FF6701] hover:text-white dark:border-[#FF6500]/40 dark:bg-[#1E3E62]/60 dark:text-[#FF6500] dark:hover:bg-[#FF6500] dark:hover:text-white transition-colors"
             >
               <FolderArchive className="h-4 w-4" />
               <span>Unggah Folder</span>
@@ -623,6 +627,16 @@ export const DrivePage: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          openMoveModal(folder);
+                        }}
+                        title="Pindahkan Folder"
+                        className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                      >
+                        <FolderSymlink className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleDownload(folder);
                         }}
                         title="Download ZIP"
@@ -715,6 +729,13 @@ export const DrivePage: React.FC = () => {
                       {/* Card Actions */}
                       <div className="mt-3 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between">
                         <button
+                          onClick={() => openMoveModal(file)}
+                          title="Pindahkan Berkas"
+                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                        >
+                          <FolderSymlink className="h-3.5 w-3.5" />
+                        </button>
+                        <button
                           onClick={() => handleDownload(file)}
                           title="Unduh"
                           className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
@@ -792,6 +813,13 @@ export const DrivePage: React.FC = () => {
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              onClick={() => openMoveModal(folder)}
+                              title="Pindahkan Folder"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                            >
+                              <FolderSymlink className="h-4 w-4" />
+                            </button>
+                            <button
                               onClick={() => handleDownload(folder)}
                               title="Download ZIP"
                               className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
@@ -860,6 +888,13 @@ export const DrivePage: React.FC = () => {
                                 <Eye className="h-4 w-4" />
                               </button>
                             )}
+                            <button
+                              onClick={() => openMoveModal(file)}
+                              title="Pindahkan Berkas"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                            >
+                              <FolderSymlink className="h-4 w-4" />
+                            </button>
                             <button
                               onClick={() => handleDownload(file)}
                               title="Unduh"
@@ -1079,6 +1114,114 @@ export const DrivePage: React.FC = () => {
               >
                 <Download className="h-4 w-4 text-white" />
                 <span>Unduh Berkas</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* MODAL: Pindahkan Item (File atau Folder ke Subfolder Lain) */}
+      <Modal
+        isOpen={moveTarget !== null}
+        onClose={() => setMoveTarget(null)}
+        title={`Pindahkan ${moveTarget?.type === 'folder' ? 'Folder' : 'Berkas'}`}
+      >
+        {moveTarget && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-3 dark:border-[#1E3E62] dark:bg-[#000000]">
+              <div className="flex items-center gap-2">
+                {moveTarget.type === 'folder' ? (
+                  <Folder className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" fill="currentColor" />
+                ) : (
+                  <File className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+                )}
+                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  {moveTarget.name}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                Pilih folder tujuan untuk memindahkan item ini:
+              </p>
+            </div>
+
+            {/* Folder Destination Selector */}
+            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+              {/* Root / Drive Saya */}
+              <button
+                type="button"
+                onClick={() => setSelectedDestinationId(null)}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold transition-colors ${
+                  selectedDestinationId === null
+                    ? 'border border-[#FF6701] bg-[#FF6701]/10 text-[#FF6701] dark:border-[#FF6500] dark:bg-[#1E3E62] dark:text-[#FF6500]'
+                    : 'border border-[#92B4EC]/50 bg-white hover:bg-[#92B4EC]/15 text-slate-700 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Home className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+                  <span>Drive Saya (Folder Utama)</span>
+                </div>
+                {moveTarget.parent_id === null && (
+                  <span className="text-[10px] text-slate-400 font-normal">(Lokasi Saat Ini)</span>
+                )}
+              </button>
+
+              {/* Hierarchical Folder list */}
+              {allFolders &&
+                buildFolderHierarchy(allFolders, moveTarget).map((f) => {
+                  const isCurrentParent = moveTarget.parent_id === f.id;
+                  const isSelected = selectedDestinationId === f.id;
+                  const isDisabled = f.isDisabled;
+
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => setSelectedDestinationId(f.id)}
+                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                        isDisabled
+                          ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'
+                          : isSelected
+                          ? 'border border-[#FF6701] bg-[#FF6701]/10 text-[#FF6701] dark:border-[#FF6500] dark:bg-[#1E3E62] dark:text-[#FF6500] font-bold'
+                          : 'border border-[#92B4EC]/40 bg-white hover:bg-[#92B4EC]/15 text-slate-700 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-300'
+                      }`}
+                      style={{ paddingLeft: `${Math.max(12, f.depth * 16 + 12)}px` }}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Folder className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500] shrink-0" fill="currentColor" />
+                        <span className="truncate">{f.name}</span>
+                      </div>
+                      {isCurrentParent ? (
+                        <span className="text-[10px] text-slate-400 font-normal shrink-0">(Lokasi Saat Ini)</span>
+                      ) : isDisabled ? (
+                        <span className="text-[10px] text-slate-400 font-normal shrink-0">(Tidak Dapat Dipilih)</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#92B4EC]/40 dark:border-[#1E3E62]">
+              <button
+                type="button"
+                onClick={() => setMoveTarget(null)}
+                className="rounded-xl border border-[#92B4EC] px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:text-slate-300"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={moveTarget.parent_id === selectedDestinationId || moveMutation.isPending}
+                onClick={() => {
+                  moveMutation.mutate({
+                    id: moveTarget.id,
+                    targetParentId: selectedDestinationId,
+                  });
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors disabled:opacity-50"
+              >
+                <MoveRight className="h-3.5 w-3.5 text-white" />
+                <span>{moveMutation.isPending ? 'Memindahkan...' : 'Pindahkan ke Sini'}</span>
               </button>
             </div>
           </div>

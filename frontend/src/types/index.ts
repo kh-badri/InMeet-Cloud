@@ -116,3 +116,27 @@ export interface DriveListResponse {
   total_bytes: number;
 }
 
+export interface DriveFolderTreeItem {
+  id: string;
+  parent_id: string | null;
+  name: string;
+}
+
+export interface DriveUploadSession {
+  id: string;
+  user_id: string;
+  parent_id: string | null;
+  filename: string;
+  relative_path: string;
+  total_bytes: number;
+  uploaded_bytes: number;
+  chunk_size: number;
+  total_chunks: number;
+  last_chunk_index: number;
+  mime_type: string;
+  status: 'in_progress' | 'completed' | 'aborted';
+  created_at: string;
+  updated_at: string;
+}
+
+

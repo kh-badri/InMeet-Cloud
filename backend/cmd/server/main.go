@@ -198,10 +198,17 @@ func main() {
 		r.Use(handler.RequireAuth)
 		r.Get("/items", driveHandler.HandleList)
 		r.Post("/folder", driveHandler.HandleCreateFolder)
+		r.Get("/folders", driveHandler.HandleListFolders)
 		r.Post("/upload", driveHandler.HandleUpload)
+		r.Post("/upload/init", driveHandler.HandleInitUpload)
+		r.Post("/upload/chunk", driveHandler.HandleUploadChunk)
+		r.Post("/upload/complete", driveHandler.HandleCompleteUpload)
+		r.Get("/upload/sessions", driveHandler.HandleGetUploadSessions)
+		r.Delete("/upload/sessions/{id}", driveHandler.HandleAbortUpload)
 		r.Get("/items/{id}/download", driveHandler.HandleDownload)
 		r.Delete("/items/{id}", driveHandler.HandleDelete)
 		r.Patch("/items/{id}", driveHandler.HandleRename)
+		r.Post("/items/{id}/move", driveHandler.HandleMove)
 	})
 
 	// Dashboard stats & Audit log

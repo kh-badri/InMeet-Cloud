@@ -11,6 +11,8 @@ import { ApplicationsPage } from './pages/ApplicationsPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { DocsPage } from './pages/DocsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { DriveUploadProvider } from './context/DriveUploadContext';
+import { UploadDock } from './components/UploadDock';
 import { Cloud, ShieldCheck } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -78,51 +80,56 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-lightBg dark:bg-darkBg text-slate-900 dark:text-slate-100 flex flex-col">
-      <Navbar 
-        isSidebarOpen={isSidebarOpen} 
-        onToggleSidebar={toggleSidebar} 
-      />
-
-      <div className="flex flex-1 relative">
-        {/* Mobile Backdrop Overlay when Sidebar is open */}
-        {isSidebarOpen && (
-          <div 
-            onClick={toggleSidebar}
-            className="fixed inset-0 top-16 bg-black/50 z-20 md:hidden animate-fade-in"
-            aria-hidden="true"
-          />
-        )}
-
-        {/* Responsive & Sticky Sidebar (Never Auto-Hides) */}
-        <Sidebar 
-          activeTab={activeTab} 
-          onTabChange={handleTabChange} 
-          isOpen={isSidebarOpen}
-          onClose={toggleSidebar}
+    <DriveUploadProvider>
+      <div className="min-h-screen bg-lightBg dark:bg-darkBg text-slate-900 dark:text-slate-100 flex flex-col">
+        <Navbar 
+          isSidebarOpen={isSidebarOpen} 
+          onToggleSidebar={toggleSidebar} 
         />
 
-        {/* Main Content Area with Silky-Smooth Page Reveal Animation */}
-        <main className="flex-1 min-w-0 p-3.5 sm:p-5 lg:p-6 max-w-7xl mx-auto w-full">
-          <div
-            key={activeTab}
-            className="animate-page-reveal"
-          >
-            {activeTab === 'dashboard' && (
-              <DashboardPage onNavigate={handleTabChange} />
-            )}
-            {activeTab === 'drive' && <DrivePage />}
-            {activeTab === 'backups' && <BackupsPage />}
-            {activeTab === 'apps' && <ApplicationsPage />}
-            {activeTab === 'audit' && <AuditLogPage />}
-            {activeTab === 'docs' && <DocsPage />}
-            {activeTab === 'settings' && <SettingsPage />}
-          </div>
-        </main>
-      </div>
+        <div className="flex flex-1 relative">
+          {/* Mobile Backdrop Overlay when Sidebar is open */}
+          {isSidebarOpen && (
+            <div 
+              onClick={toggleSidebar}
+              className="fixed inset-0 top-16 bg-black/50 z-20 md:hidden animate-fade-in"
+              aria-hidden="true"
+            />
+          )}
 
-      {/* Mobile-first Bottom Navigation Bar */}
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
-    </div>
+          {/* Responsive & Sticky Sidebar (Never Auto-Hides) */}
+          <Sidebar 
+            activeTab={activeTab} 
+            onTabChange={handleTabChange} 
+            isOpen={isSidebarOpen}
+            onClose={toggleSidebar}
+          />
+
+          {/* Main Content Area with Silky-Smooth Page Reveal Animation */}
+          <main className="flex-1 min-w-0 p-3.5 sm:p-5 lg:p-6 max-w-7xl mx-auto w-full">
+            <div
+              key={activeTab}
+              className="animate-page-reveal"
+            >
+              {activeTab === 'dashboard' && (
+                <DashboardPage onNavigate={handleTabChange} />
+              )}
+              {activeTab === 'drive' && <DrivePage />}
+              {activeTab === 'backups' && <BackupsPage />}
+              {activeTab === 'apps' && <ApplicationsPage />}
+              {activeTab === 'audit' && <AuditLogPage />}
+              {activeTab === 'docs' && <DocsPage />}
+              {activeTab === 'settings' && <SettingsPage />}
+            </div>
+          </main>
+        </div>
+
+        {/* Mobile-first Bottom Navigation Bar */}
+        <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+
+        {/* Floating Background Resumable Upload Manager Dock */}
+        <UploadDock />
+      </div>
+    </DriveUploadProvider>
   );
 };

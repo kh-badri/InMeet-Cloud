@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -247,4 +249,181 @@ func (h *DriveHandler) HandleRename(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "berhasil mengubah nama", "name": cleanName})
+}
+
+func (h *DriveHandler) HandleMove(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	var req model.MoveDriveItemRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.driveService.MoveItem(r.Context(), user.ID, id, req.TargetParentID); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "item berhasil dipindahkan"})
+}
+
+func (h *DriveHandler) HandleListFolders(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	folders, err := h.driveService.ListAllFolders(r.Context(), user.ID)
+	if err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, folders)
+}
+
+func (h *DriveHandler) HandleInitUpload(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.InitUploadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	res, err := h.driveService.InitUploadSession(r.Context(), user.ID, &req)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *DriveHandler) HandleUploadChunk(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	// 64MB max chunk read limit
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<20)
+
+	uploadIDStr := r.FormValue("upload_id")
+	if uploadIDStr == "" {
+		uploadIDStr = r.URL.Query().Get("upload_id")
+	}
+	uploadID, err := uuid.Parse(uploadIDStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid upload_id"})
+		return
+	}
+
+	chunkIdxStr := r.FormValue("chunk_index")
+	if chunkIdxStr == "" {
+		chunkIdxStr = r.URL.Query().Get("chunk_index")
+	}
+	chunkIndex := 0
+	if _, err := fmt.Sscanf(chunkIdxStr, "%d", &chunkIndex); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid chunk_index"})
+		return
+	}
+
+	file, _, err := r.FormFile("chunk")
+	var chunkReader io.Reader = file
+	if err != nil {
+		chunkReader = r.Body
+	} else {
+		defer file.Close()
+	}
+
+	uploadedBytes, err := h.driveService.SaveChunk(r.Context(), user.ID, uploadID, chunkIndex, chunkReader)
+	if err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"success":        true,
+		"chunk_index":    chunkIndex,
+		"uploaded_bytes": uploadedBytes,
+	})
+}
+
+func (h *DriveHandler) HandleCompleteUpload(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.CompleteUploadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	item, err := h.driveService.CompleteUploadSession(r.Context(), user.ID, req.UploadID)
+	if err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, item)
+}
+
+func (h *DriveHandler) HandleGetUploadSessions(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	sessions, err := h.driveService.GetActiveUploadSessions(r.Context(), user.ID)
+	if err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, sessions)
+}
+
+func (h *DriveHandler) HandleAbortUpload(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid upload ID"})
+		return
+	}
+
+	if err := h.driveService.AbortUploadSession(r.Context(), user.ID, id); err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "sesi upload dibatalkan"})
 }
