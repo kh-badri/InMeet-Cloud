@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../lib/api';
 import { DriveUploadSession } from '../types';
+import { saveUploadToDB, getAllUploadsFromDB, removeUploadFromDB } from '../lib/uploadDb';
 
 export interface UploadTask {
   id: string;
@@ -64,36 +65,6 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isUploading]);
 
-  // Load existing uncompleted sessions on mount
-  useEffect(() => {
-    apiRequest<DriveUploadSession[]>('/api/v1/drive/upload/sessions')
-      .then((sessions) => {
-        if (sessions && sessions.length > 0) {
-          const restoredTasks: UploadTask[] = sessions.map((s) => ({
-            id: s.id,
-            filename: s.filename,
-            relativePath: s.relative_path,
-            totalBytes: s.total_bytes,
-            uploadedBytes: s.uploaded_bytes,
-            speedBytesPerSec: 0,
-            etaSeconds: 0,
-            progressPercent: s.total_bytes > 0 ? Math.floor((s.uploaded_bytes / s.total_bytes) * 100) : 0,
-            status: 'paused',
-            parentFolderId: s.parent_id,
-            chunkSize: s.chunk_size,
-            totalChunks: s.total_chunks,
-            lastChunkIndex: s.last_chunk_index,
-          }));
-          setTasks((prev) => {
-            const existingIds = new Set(prev.map((t) => t.id));
-            const newRestored = restoredTasks.filter((t) => !existingIds.has(t.id));
-            return [...prev, ...newRestored];
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
-
   // Worker function to upload chunks for a task
   const processUploadTask = useCallback(async (task: UploadTask, file: File) => {
     const controller = new AbortController();
@@ -115,6 +86,21 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
           setTasks((prev) =>
             prev.map((t) => (t.id === task.id ? { ...t, status: 'paused', speedBytesPerSec: 0 } : t))
           );
+          saveUploadToDB({
+            id: task.id,
+            file,
+            filename: task.filename,
+            relativePath: task.relativePath,
+            totalBytes,
+            uploadedBytes,
+            chunkSize,
+            totalChunks,
+            lastChunkIndex: currentChunk - 1,
+            parentFolderId: task.parentFolderId,
+            parentFolderName: task.parentFolderName,
+            status: 'paused',
+            updatedAt: Date.now(),
+          });
           return;
         }
 
@@ -171,6 +157,25 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             };
           })
         );
+
+        // Periodically sync progress to IndexedDB
+        if (currentChunk % 2 === 0 || currentChunk === totalChunks) {
+          saveUploadToDB({
+            id: task.id,
+            file,
+            filename: task.filename,
+            relativePath: task.relativePath,
+            totalBytes,
+            uploadedBytes,
+            chunkSize,
+            totalChunks,
+            lastChunkIndex: currentChunk - 1,
+            parentFolderId: task.parentFolderId,
+            parentFolderName: task.parentFolderName,
+            status: 'uploading',
+            updatedAt: Date.now(),
+          });
+        }
       }
 
       // Finalize upload on server
@@ -202,6 +207,9 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
         )
       );
 
+      // Clean up from IndexedDB upon completion
+      removeUploadFromDB(task.id);
+
       // Refresh items in current folder
       queryClient.invalidateQueries({ queryKey: ['drive-items'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
@@ -220,11 +228,116 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             : t
         )
       );
+
+      saveUploadToDB({
+        id: task.id,
+        file,
+        filename: task.filename,
+        relativePath: task.relativePath,
+        totalBytes,
+        uploadedBytes,
+        chunkSize,
+        totalChunks,
+        lastChunkIndex: currentChunk - 1,
+        parentFolderId: task.parentFolderId,
+        parentFolderName: task.parentFolderName,
+        status: 'error',
+        errorMessage: err.message,
+        updatedAt: Date.now(),
+      });
     } finally {
       abortControllersRef.current.delete(task.id);
       pauseFlagsRef.current.delete(task.id);
     }
   }, [queryClient]);
+
+  // Load existing uncompleted sessions on mount & automatically resume if File exists in IndexedDB
+  useEffect(() => {
+    let isMounted = true;
+
+    const restoreSessions = async () => {
+      const dbTasks = await getAllUploadsFromDB();
+      let serverSessions: DriveUploadSession[] = [];
+      try {
+        serverSessions = await apiRequest<DriveUploadSession[]>('/api/v1/drive/upload/sessions');
+      } catch (err) {
+        // offline or transient network error
+      }
+
+      if (!isMounted) return;
+
+      const serverMap = new Map(serverSessions.map((s) => [s.id, s]));
+      const restoredList: UploadTask[] = [];
+
+      for (const t of dbTasks) {
+        const s = serverMap.get(t.id);
+        const uploadedBytes = s ? s.uploaded_bytes : t.uploadedBytes;
+        const lastChunkIndex = s ? s.last_chunk_index : t.lastChunkIndex;
+        const progressPercent = t.totalBytes > 0 ? Math.floor((uploadedBytes / t.totalBytes) * 100) : 0;
+
+        if (s && s.status === 'completed') {
+          await removeUploadFromDB(t.id);
+          continue;
+        }
+
+        const task: UploadTask = {
+          id: t.id,
+          file: t.file,
+          filename: t.filename,
+          relativePath: t.relativePath,
+          totalBytes: t.totalBytes,
+          uploadedBytes,
+          speedBytesPerSec: 0,
+          etaSeconds: 0,
+          progressPercent,
+          status: t.file ? 'uploading' : 'paused',
+          parentFolderId: t.parentFolderId,
+          parentFolderName: t.parentFolderName,
+          chunkSize: t.chunkSize,
+          totalChunks: t.totalChunks,
+          lastChunkIndex,
+        };
+
+        restoredList.push(task);
+
+        // AUTO-RESUME SEAMLESSLY IF FILE PERSISTS IN INDEXEDDB!
+        if (task.file) {
+          processUploadTask(task, task.file);
+        }
+      }
+
+      // Add any server sessions not present in local IndexedDB
+      for (const s of serverSessions) {
+        if (!dbTasks.some((t) => t.id === s.id)) {
+          restoredList.push({
+            id: s.id,
+            filename: s.filename,
+            relativePath: s.relative_path,
+            totalBytes: s.total_bytes,
+            uploadedBytes: s.uploaded_bytes,
+            speedBytesPerSec: 0,
+            etaSeconds: 0,
+            progressPercent: s.total_bytes > 0 ? Math.floor((s.uploaded_bytes / s.total_bytes) * 100) : 0,
+            status: 'paused',
+            parentFolderId: s.parent_id,
+            chunkSize: s.chunk_size,
+            totalChunks: s.total_chunks,
+            lastChunkIndex: s.last_chunk_index,
+          });
+        }
+      }
+
+      if (isMounted && restoredList.length > 0) {
+        setTasks(restoredList);
+      }
+    };
+
+    restoreSessions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [processUploadTask]);
 
   // Start uploading array of files (supports multi-gigabyte files & nested directories)
   const startUpload = useCallback(
@@ -273,6 +386,23 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
             lastChunkIndex: initRes.last_chunk_index,
           };
 
+          // Save to IndexedDB so File persists across page refreshes!
+          await saveUploadToDB({
+            id: newTask.id,
+            file,
+            filename: newTask.filename,
+            relativePath: newTask.relativePath,
+            totalBytes: newTask.totalBytes,
+            uploadedBytes: newTask.uploadedBytes,
+            chunkSize: newTask.chunkSize,
+            totalChunks: newTask.totalChunks,
+            lastChunkIndex: newTask.lastChunkIndex,
+            parentFolderId: newTask.parentFolderId,
+            parentFolderName: newTask.parentFolderName,
+            status: 'uploading',
+            updatedAt: Date.now(),
+          });
+
           setTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)]);
 
           // Start chunk upload loop
@@ -309,6 +439,21 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
 
         const updated = { ...target, file: fileToUse, status: 'uploading' as const };
+        saveUploadToDB({
+          id: updated.id,
+          file: fileToUse,
+          filename: updated.filename,
+          relativePath: updated.relativePath,
+          totalBytes: updated.totalBytes,
+          uploadedBytes: updated.uploadedBytes,
+          chunkSize: updated.chunkSize,
+          totalChunks: updated.totalChunks,
+          lastChunkIndex: updated.lastChunkIndex,
+          parentFolderId: updated.parentFolderId,
+          parentFolderName: updated.parentFolderName,
+          status: 'uploading',
+          updatedAt: Date.now(),
+        });
         processUploadTask(updated, fileToUse);
         return prev.map((t) => (t.id === taskId ? updated : t));
       });
@@ -327,6 +472,7 @@ export const DriveUploadProvider: React.FC<{ children: React.ReactNode }> = ({ c
       credentials: 'include',
     }).catch(() => {});
 
+    removeUploadFromDB(taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
   }, []);
 
