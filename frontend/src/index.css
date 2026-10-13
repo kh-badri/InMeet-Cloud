@@ -5,7 +5,7 @@
 @layer base {
   html {
     @apply antialiased scroll-smooth;
-    zoom: 0.9;
+    font-size: 14.4px; /* 90% scaling (16px * 0.9 = 14.4px) - standard CSS rem scaling, fixes 100vh viewport cutoff */
   }
   body {
     @apply font-sans transition-colors duration-150 ease-out bg-lightBg dark:bg-darkBg text-slate-900 dark:text-slate-100 selection:bg-brandPrimary selection:text-white min-h-screen;

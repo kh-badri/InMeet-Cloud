@@ -94,11 +94,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ? 'w-64 translate-x-0 opacity-100 shadow-md md:shadow-none' 
           : '-translate-x-full md:translate-x-0 md:w-0 md:opacity-0 md:border-r-0 md:pointer-events-none'
         }
-        h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)]
+        h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)]
       `}
     >
-      {/* Fixed-width inner container with independent clean scrollbar */}
-      <div className="w-64 flex flex-col h-full p-3.5 shrink-0 justify-between overflow-y-auto overflow-x-hidden">
+      {/* Fixed-width inner container with independent clean scrollbar and full scroll headroom */}
+      <div className="w-64 flex flex-col h-full p-3.5 pb-6 shrink-0 overflow-y-auto overflow-x-hidden">
         {/* Navigation Items */}
         <div className="space-y-4">
           <div className="space-y-1">
@@ -120,36 +120,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Modern Cloud Telemetry Node Widget */}
-        <div className="mt-4 rounded-2xl border border-[#92B4EC]/70 bg-[#F3F6FD] p-3.5 dark:border-[#1E3E62] dark:bg-[#000000] shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <span className="text-[11px] font-bold text-slate-900 dark:text-slate-100">
-                InMeet Storage
+        {/* Modern Cloud Telemetry Node Widget (pushed to bottom with mt-auto, fully scrollable) */}
+        <div className="mt-auto pt-4 shrink-0">
+          <div className="rounded-2xl border border-[#92B4EC]/70 bg-[#F3F6FD] p-3.5 dark:border-[#1E3E62] dark:bg-[#000000] shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="text-[11px] font-bold text-slate-900 dark:text-slate-100">
+                  InMeet Storage
+                </span>
+              </div>
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white text-[#FF6701] font-bold border border-[#92B4EC]/60 dark:bg-[#0B192C] dark:text-[#FF6500] dark:border-[#1E3E62]">
+                ACTIVE
               </span>
             </div>
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white text-[#FF6701] font-bold border border-[#92B4EC]/60 dark:bg-[#0B192C] dark:text-[#FF6500] dark:border-[#1E3E62]">
-              ACTIVE
-            </span>
-          </div>
 
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-            Enkripsi AES-256-GCM dengan cron retensi harian otomatis.
-          </p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+              Enkripsi AES-256-GCM dengan cron retensi harian otomatis.
+            </p>
 
-          <div className="mt-2.5 pt-2 border-t border-[#92B4EC]/40 dark:border-[#1E3E62] flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 font-mono">
-            <span className="flex items-center gap-1.5">
-              <HardDrive className="h-3 w-3 text-[#FF6701] dark:text-[#FF6500]" />
-              Local Vault
-            </span>
-            <span className="flex items-center gap-1 text-[#FEA82F] font-bold">
-              <ShieldCheck className="h-3 w-3 text-emerald-500" />
-              100% SECURE
-            </span>
+            <div className="mt-2.5 pt-2 border-t border-[#92B4EC]/40 dark:border-[#1E3E62] flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 font-mono">
+              <span className="flex items-center gap-1.5">
+                <HardDrive className="h-3 w-3 text-[#FF6701] dark:text-[#FF6500]" />
+                Local Vault
+              </span>
+              <span className="flex items-center gap-1 text-[#FEA82F] font-bold">
+                <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                100% SECURE
+              </span>
+            </div>
           </div>
         </div>
       </div>
