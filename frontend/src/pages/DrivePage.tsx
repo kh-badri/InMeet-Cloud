@@ -343,8 +343,8 @@ export const DrivePage: React.FC = () => {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           {/* Title & Stats */}
           <div className="flex items-start sm:items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-black">
-              <HardDrive className="h-6 w-6" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white">
+              <HardDrive className="h-6 w-6 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -374,16 +374,16 @@ export const DrivePage: React.FC = () => {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FEA82F] hover:text-slate-900 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white dark:hover:bg-[#FF6701] transition-colors disabled:opacity-50"
             >
-              <Upload className="h-4 w-4" />
+              <Upload className="h-4 w-4 text-white" />
               <span>Unggah Berkas</span>
             </button>
 
             <button
               onClick={() => folderInputRef.current?.click()}
               disabled={isUploading}
-              className="flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-[#FF6701]/10 px-3 py-2 text-xs font-bold text-[#FF6701] hover:bg-[#FF6701] hover:text-white dark:border-[#FF6500]/40 dark:bg-[#1E3E62]/60 dark:text-[#FF6500] dark:hover:bg-[#FF6500] dark:hover:text-black transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-[#FF6701]/10 px-3 py-2 text-xs font-bold text-[#FF6701] hover:bg-[#FF6701] hover:text-white dark:border-[#FF6500]/40 dark:bg-[#1E3E62]/60 dark:text-[#FF6500] dark:hover:bg-[#FF6500] dark:hover:text-white transition-colors disabled:opacity-50"
             >
               <FolderArchive className="h-4 w-4" />
               <span>Unggah Folder</span>
@@ -478,7 +478,7 @@ export const DrivePage: React.FC = () => {
                 onClick={() => setViewMode('grid')}
                 className={`p-1.5 rounded-lg transition-colors ${
                   viewMode === 'grid'
-                    ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-black'
+                    ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white'
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`}
                 title="Tampilan Kisi (Grid)"
@@ -489,7 +489,7 @@ export const DrivePage: React.FC = () => {
                 onClick={() => setViewMode('list')}
                 className={`p-1.5 rounded-lg transition-colors ${
                   viewMode === 'list'
-                    ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-black'
+                    ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white'
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`}
                 title="Tampilan Tabel (List)"
@@ -505,8 +505,8 @@ export const DrivePage: React.FC = () => {
       {data?.current_folder && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#92B4EC] bg-[#F3F6FD] px-4 py-3 dark:border-[#1E3E62] dark:bg-[#000000] shadow-xs animate-fade-in">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF6701]/15 text-[#FF6701] dark:bg-[#FF6500]/20 dark:text-[#FF6500]">
-              <Folder className="h-5 w-5" fill="currentColor" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white">
+              <Folder className="h-5 w-5 text-white" fill="currentColor" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
@@ -519,8 +519,8 @@ export const DrivePage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-white px-3 py-1.5 text-xs font-mono font-bold text-[#FF6701] dark:border-[#FF6500]/40 dark:bg-[#0B192C] dark:text-[#FF6500]">
-              <HardDrive className="h-3.5 w-3.5" />
+            <span className="inline-flex items-center gap-1.5 rounded-xl bg-[#FF6701] dark:bg-[#FF6500] text-white px-3 py-1.5 text-xs font-mono font-bold">
+              <HardDrive className="h-3.5 w-3.5 text-white" />
               <span>Space Digunakan: {formatBytes(data.current_folder.size_bytes)}</span>
             </span>
             <button
@@ -569,9 +569,9 @@ export const DrivePage: React.FC = () => {
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FEA82F] hover:text-slate-900 dark:bg-[#FF6500] dark:text-black"
+                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white"
               >
-                <Upload className="h-3.5 w-3.5" />
+                <Upload className="h-3.5 w-3.5 text-white" />
                 <span>Unggah Berkas</span>
               </button>
             </div>
@@ -606,12 +606,12 @@ export const DrivePage: React.FC = () => {
                         <p className="text-xs font-bold text-slate-900 dark:text-white truncate" title={folder.name}>
                           {folder.name}
                         </p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-mono font-bold bg-[#92B4EC]/25 text-[#FF6701] dark:bg-[#000000] dark:text-[#FEA82F] border border-[#92B4EC]/40 dark:border-[#1E3E62]">
-                            <HardDrive className="h-2.5 w-2.5" />
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[8.5px] font-mono font-bold bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white leading-none shadow-2xs">
+                            <HardDrive className="h-2 w-2 text-white shrink-0" />
                             {formatBytes(folder.size_bytes)}
                           </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
                             {folder.item_count !== undefined ? `${folder.item_count} item` : '0 item'}
                           </span>
                         </div>
@@ -943,7 +943,7 @@ export const DrivePage: React.FC = () => {
             <button
               type="submit"
               disabled={!newFolderName.trim() || createFolderMutation.isPending}
-              className="rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FEA82F] hover:text-slate-900 dark:bg-[#FF6500] dark:text-black disabled:opacity-50 transition-colors"
+              className="rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white disabled:opacity-50 transition-colors"
             >
               {createFolderMutation.isPending ? 'Membuat...' : 'Buat Folder'}
             </button>
@@ -991,7 +991,7 @@ export const DrivePage: React.FC = () => {
             <button
               type="submit"
               disabled={!newName.trim() || renameMutation.isPending}
-              className="rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FEA82F] hover:text-slate-900 dark:bg-[#FF6500] dark:text-black disabled:opacity-50 transition-colors"
+              className="rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white disabled:opacity-50 transition-colors"
             >
               {renameMutation.isPending ? 'Menyimpan...' : 'Simpan'}
             </button>
@@ -1075,9 +1075,9 @@ export const DrivePage: React.FC = () => {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => handleDownload(previewItem)}
-                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FEA82F] hover:text-slate-900 dark:bg-[#FF6500] dark:text-black transition-colors"
+                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors"
               >
-                <Download className="h-4 w-4" />
+                <Download className="h-4 w-4 text-white" />
                 <span>Unduh Berkas</span>
               </button>
             </div>

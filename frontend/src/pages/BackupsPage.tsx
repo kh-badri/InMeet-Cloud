@@ -358,9 +358,9 @@ export const BackupsPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => handleDownload(b)}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF6701] text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black shadow-2xs"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF6701] text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-2xs"
                   >
-                    <Download className="h-4.5 w-4.5" />
+                    <Download className="h-4.5 w-4.5 text-white" />
                   </button>
                   {isAdmin && (
                     <button
@@ -423,9 +423,9 @@ export const BackupsPage: React.FC = () => {
             <div className="pt-4 border-t border-[#92B4EC]/30 dark:border-[#1E3E62] flex justify-end">
               <button
                 onClick={() => handleDownload(detailBackup)}
-                className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all shadow-sm"
+                className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all shadow-sm"
               >
-                <Download className="h-4 w-4" /> Unduh File Sekarang
+                <Download className="h-4 w-4 text-white" /> Unduh File Sekarang
               </button>
             </div>
           </div>

@@ -267,7 +267,7 @@ export const SettingsPage: React.FC = () => {
             <button
               type="submit"
               disabled={isUpdatingProfile}
-              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 text-xs font-bold text-white shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20 transition-all"
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 text-xs font-bold text-white shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20 transition-all"
             >
               {isUpdatingProfile ? 'Menyimpan...' : 'Simpan Perubahan Email'}
             </button>
@@ -344,7 +344,7 @@ export const SettingsPage: React.FC = () => {
             <button
               type="submit"
               disabled={isUpdatingPassword}
-              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 text-xs font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20"
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 text-xs font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20"
             >
               {isUpdatingPassword ? 'Memperbarui...' : 'Perbarui Password'}
             </button>
@@ -388,7 +388,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 onClick={handleStartSetup}
                 disabled={isSubmitting}
-                className="flex items-center gap-2 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2.5 text-xs font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20"
+                className="flex items-center gap-2 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2.5 text-xs font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20"
               >
                 <KeyRound className="h-4 w-4" /> Aktifkan 2FA Sekarang
               </button>
@@ -452,7 +452,7 @@ export const SettingsPage: React.FC = () => {
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20"
+                        className="rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20"
                       >
                         {isSubmitting ? 'Mengaktifkan...' : 'Konfirmasi & Aktifkan'}
                       </button>
@@ -540,9 +540,9 @@ export const SettingsPage: React.FC = () => {
                   }
                 }}
                 disabled={runRetentionMutation.isPending}
-                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-3.5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 shadow-md shadow-[#FF6701]/20 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] dark:shadow-[#FF6500]/20"
+                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-3.5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 shadow-md shadow-[#FF6701]/20 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20"
               >
-                <Play className="h-3.5 w-3.5 fill-current" />
+                <Play className="h-3.5 w-3.5 fill-current text-white" />
                 Jalankan Retensi Sekarang
               </button>
             </div>

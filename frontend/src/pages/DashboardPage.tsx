@@ -64,9 +64,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => onNavigate('apps')}
-            className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all"
+            className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all"
           >
-            <Plus className="h-3.5 w-3.5" /> Tambah Aplikasi
+            <Plus className="h-3.5 w-3.5 text-white" /> Tambah Aplikasi
           </button>
           <button
             onClick={() => onNavigate('docs')}

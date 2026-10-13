@@ -49,8 +49,8 @@ export const LoginPage: React.FC = () => {
       <div className="w-full max-w-md rounded-2xl border border-[#92B4EC]/70 bg-white p-8 sm:p-10 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C]">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF6701] text-white font-bold shadow-sm dark:bg-[#FF6500] dark:text-black mb-3">
-            <Cloud className="h-6 w-6" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF6701] text-white font-bold shadow-sm dark:bg-[#FF6500] dark:text-white mb-3">
+            <Cloud className="h-6 w-6 text-white" />
           </div>
           <div className="flex items-center gap-1.5">
             <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
@@ -114,10 +114,10 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] text-white px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors duration-150 shadow-sm active:scale-[0.99] disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F]"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] text-white px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors duration-150 shadow-sm active:scale-[0.99] disabled:opacity-50 dark:bg-[#FF6500] dark:text-white"
             >
               {isSubmitting ? 'Memproses...' : 'Masuk ke Sistem'}
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4 text-white" />
             </button>
           </form>
         ) : (
@@ -152,7 +152,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] text-white px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors duration-150 shadow-sm active:scale-[0.99] disabled:opacity-50 dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F]"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] text-white px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors duration-150 shadow-sm active:scale-[0.99] disabled:opacity-50 dark:bg-[#FF6500] dark:text-white"
             >
               {isSubmitting ? 'Memverifikasi...' : 'Verifikasi & Lanjutkan'}
             </button>

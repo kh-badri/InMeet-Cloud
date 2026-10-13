@@ -164,7 +164,7 @@ export const ApplicationsPage: React.FC = () => {
 
         <button
           onClick={() => setIsAddAppOpen(true)}
-          className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all"
+          className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all"
         >
           <Plus className="h-4 w-4" /> Tambah Aplikasi
         </button>
@@ -272,7 +272,7 @@ export const ApplicationsPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setActiveAppKeys(app)}
-                  className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-3 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-2xs transition-all"
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-3 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-2xs transition-all"
                 >
                   <KeyRound className="h-3.5 w-3.5" />
                   Kelola API Key
@@ -387,7 +387,7 @@ export const ApplicationsPage: React.FC = () => {
             <button
               type="submit"
               disabled={createAppMutation.isPending}
-              className="rounded-xl bg-[#FF6701] px-5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-sm transition-all disabled:opacity-50"
+              className="rounded-xl bg-[#FF6701] px-5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-sm transition-all disabled:opacity-50"
             >
               {createAppMutation.isPending ? 'Menyimpan...' : 'Simpan Aplikasi'}
             </button>
@@ -487,7 +487,7 @@ export const ApplicationsPage: React.FC = () => {
             <button
               type="submit"
               disabled={updateAppMutation.isPending}
-              className="rounded-xl bg-[#FF6701] px-5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-sm transition-all disabled:opacity-50"
+              className="rounded-xl bg-[#FF6701] px-5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-sm transition-all disabled:opacity-50"
             >
               {updateAppMutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
             </button>
@@ -513,7 +513,7 @@ export const ApplicationsPage: React.FC = () => {
             {!isCreateKeyOpen && (
               <button
                 onClick={() => setIsCreateKeyOpen(true)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all shrink-0 shadow-2xs"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all shrink-0 shadow-2xs"
               >
                 <Plus className="h-4 w-4" /> Buat Key Baru
               </button>
@@ -578,7 +578,7 @@ export const ApplicationsPage: React.FC = () => {
                   type="button"
                   onClick={() => createKeyMutation.mutate()}
                   disabled={createKeyMutation.isPending || !keyName.trim()}
-                  className="rounded-xl bg-[#FF6701] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-2xs transition-all disabled:opacity-50"
+                  className="rounded-xl bg-[#FF6701] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-2xs transition-all disabled:opacity-50"
                 >
                   {createKeyMutation.isPending ? 'Membuat...' : 'Generate 256-bit Key'}
                 </button>
@@ -695,7 +695,7 @@ export const ApplicationsPage: React.FC = () => {
           <div className="pt-3.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62] flex justify-end">
             <button
               onClick={() => setCreatedRawKey(null)}
-              className="rounded-xl bg-[#FF6701] px-5 py-2.5 font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] shadow-sm transition-all"
+              className="rounded-xl bg-[#FF6701] px-5 py-2.5 font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-sm transition-all"
             >
               Saya Sudah Menyimpan Key
             </button>

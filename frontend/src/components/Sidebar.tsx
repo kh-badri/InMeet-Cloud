@@ -69,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {item.badge && (
           <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-mono font-bold ${
             isActive
-              ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-black'
+              ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white'
               : 'bg-[#92B4EC]/25 text-slate-700 dark:bg-[#000000] dark:text-[#FEA82F] border border-[#92B4EC]/40 dark:border-[#1E3E62]'
           }`}>
             {item.badge}

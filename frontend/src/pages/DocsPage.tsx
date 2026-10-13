@@ -114,7 +114,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
         <button
           onClick={() => copyText('agent-prompt-header', aiAgentPrompt)}
-          className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all shrink-0"
+          className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all shrink-0"
         >
           {copiedSection === 'agent-prompt-header' ? (
             <>
@@ -177,7 +177,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
           onClick={() => setActiveSubTab('agent')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'agent'
-              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-white'
               : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
@@ -189,7 +189,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
           onClick={() => setActiveSubTab('quickstart')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'quickstart'
-              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-white'
               : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
@@ -201,7 +201,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
           onClick={() => setActiveSubTab('direct')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'direct'
-              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-white'
               : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
@@ -213,7 +213,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
           onClick={() => setActiveSubTab('chunked')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'chunked'
-              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-white'
               : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
@@ -225,7 +225,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
           onClick={() => setActiveSubTab('examples')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'examples'
-              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-black'
+              ? 'bg-[#FF6701] text-white shadow-2xs dark:bg-[#FF6500] dark:text-white'
               : 'text-slate-600 hover:text-slate-900 hover:bg-[#F3F6FD] dark:text-slate-300 dark:hover:text-white dark:hover:bg-[#1E3E62]'
           }`}
         >
@@ -251,7 +251,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
               <button
                 onClick={() => copyText('agent-prompt-box', aiAgentPrompt)}
-                className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-black dark:hover:bg-[#FEA82F] transition-all shrink-0"
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white dark:hover:bg-[#FEA82F] transition-all shrink-0"
               >
                 {copiedSection === 'agent-prompt-box' ? (
                   <>
@@ -286,7 +286,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-black font-bold text-xs">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-white font-bold text-xs">
                   1
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">Daftarkan Aplikasi</h4>
@@ -296,7 +296,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
               </div>
 
               <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-black font-bold text-xs">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-white font-bold text-xs">
                   2
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">Generate API Key</h4>
@@ -306,7 +306,7 @@ Untuk file besar (> 500MB s/d 10GB), gunakan protokol chunked 4 tahap:
               </div>
 
               <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-black font-bold text-xs">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FF6701] dark:bg-[#FF6500] text-white dark:text-white font-bold text-xs">
                   3
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">Pasang di Aplikasi</h4>
@@ -463,7 +463,7 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
             <div className="space-y-3 pt-2">
               <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-md bg-[#FF6701] dark:bg-[#FF6500] px-2 py-0.5 text-[10px] font-bold text-white dark:text-black">LANGKAH 1</span>
+                  <span className="rounded-md bg-[#FF6701] dark:bg-[#FF6500] px-2 py-0.5 text-[10px] font-bold text-white dark:text-white">LANGKAH 1</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Inisiasi Sesi Upload</span>
                 </div>
                 <code className="text-[11px] font-mono text-[#FF6701] dark:text-[#FF6500] block">
@@ -489,7 +489,7 @@ curl -X PUT "${baseUrl}/api/v1/upload" \\
 
               <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-4 dark:border-[#1E3E62] dark:bg-[#000000] space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-md bg-[#FF6701] dark:bg-[#FF6500] px-2 py-0.5 text-[10px] font-bold text-white dark:text-black">LANGKAH 2</span>
+                  <span className="rounded-md bg-[#FF6701] dark:bg-[#FF6500] px-2 py-0.5 text-[10px] font-bold text-white dark:text-white">LANGKAH 2</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Kirim Pecahan File (Chunk Streaming)</span>
                 </div>
                 <code className="text-[11px] font-mono text-[#FF6701] dark:text-[#FF6500] block">

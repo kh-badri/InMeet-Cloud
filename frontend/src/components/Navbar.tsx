@@ -25,8 +25,8 @@ export const Navbar: React.FC<NavbarProps> = ({ isSidebarOpen, onToggleSidebar }
 
         {/* Brand Logo & Title with Modern Non-Standard Styling */}
         <div className="flex items-center gap-3">
-          <div className="relative flex h-9.5 w-9.5 items-center justify-center rounded-xl bg-[#FF6701] text-white shadow-sm dark:bg-[#FF6500] dark:text-black font-extrabold shrink-0">
-            <Cloud className="h-5 w-5" />
+          <div className="relative flex h-9.5 w-9.5 items-center justify-center rounded-xl bg-[#FF6701] text-white shadow-sm dark:bg-[#FF6500] dark:text-white font-extrabold shrink-0">
+            <Cloud className="h-5 w-5 text-white" />
             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
@@ -37,7 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({ isSidebarOpen, onToggleSidebar }
             <span className="text-base font-extrabold tracking-tight text-slate-900 dark:text-white">
               InMeet
             </span>
-            <span className="rounded-lg bg-[#FF6701] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white dark:bg-[#FF6500] dark:text-black">
+            <span className="rounded-lg bg-[#FF6701] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white dark:bg-[#FF6500] dark:text-white">
               Cloud
             </span>
             <div className="hidden items-center gap-1.5 rounded-full border border-[#92B4EC]/60 bg-[#F3F6FD] px-2.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-400 md:flex">

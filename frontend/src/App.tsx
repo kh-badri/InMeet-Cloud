@@ -45,8 +45,8 @@ export const App: React.FC = () => {
       <div className="flex min-h-screen items-center justify-center bg-lightBg dark:bg-darkBg p-4 selection:bg-[#FF6701] dark:selection:bg-[#FF6500] selection:text-white">
         <div className="flex flex-col items-center gap-5 max-w-xs text-center animate-fade-in">
           {/* Logo */}
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF6701] text-white shadow-sm dark:bg-[#FF6500] dark:text-black">
-            <Cloud className="h-6 w-6" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF6701] text-white shadow-sm dark:bg-[#FF6500] dark:text-white">
+            <Cloud className="h-6 w-6 text-white" />
           </div>
 
           {/* Clean Typography */}
