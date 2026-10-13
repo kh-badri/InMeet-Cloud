@@ -63,6 +63,10 @@ export interface DailyStatPoint {
 
 export interface StatsSummary {
   total_size_bytes: number;
+  backup_size_bytes: number;
+  drive_size_bytes: number;
+  drive_files_count: number;
+  drive_folders_count: number;
   disk_free_bytes: number;
   disk_total_bytes: number;
   disk_used_percent: number;

@@ -226,13 +226,28 @@ func (r *BackupRepository) GetStats(ctx context.Context, days int) (*model.Stats
 		DailyStats: []model.DailyStatPoint{},
 	}
 
-	// 1. Total verified backups and size
+	// 1. Total verified backups count and size
 	_ = r.pool.QueryRow(ctx, `
 		SELECT COALESCE(COUNT(*), 0), COALESCE(SUM(size_bytes), 0)
 		FROM backups WHERE status = 'verified'
-	`).Scan(&summary.TotalBackups, &summary.TotalSizeBytes)
+	`).Scan(&summary.TotalBackups, &summary.BackupSizeBytes)
 
-	// 2. Today backups count
+	// 2. Drive files size and count
+	_ = r.pool.QueryRow(ctx, `
+		SELECT COALESCE(COUNT(*), 0), COALESCE(SUM(size_bytes), 0)
+		FROM drive_items WHERE type = 'file'
+	`).Scan(&summary.DriveFilesCount, &summary.DriveSizeBytes)
+
+	// 3. Drive folders count
+	_ = r.pool.QueryRow(ctx, `
+		SELECT COALESCE(COUNT(*), 0)
+		FROM drive_items WHERE type = 'folder'
+	`).Scan(&summary.DriveFoldersCount)
+
+	// 4. Combined total data size
+	summary.TotalSizeBytes = summary.BackupSizeBytes + summary.DriveSizeBytes
+
+	// 5. Today backups count
 	_ = r.pool.QueryRow(ctx, `
 		SELECT COALESCE(COUNT(*), 0)
 		FROM backups WHERE status = 'verified' AND backup_date = CURRENT_DATE

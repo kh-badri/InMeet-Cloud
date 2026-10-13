@@ -159,6 +159,10 @@ type DownloadToken struct {
 
 type StatsSummary struct {
 	TotalSizeBytes      int64            `json:"total_size_bytes"`
+	BackupSizeBytes     int64            `json:"backup_size_bytes"`
+	DriveSizeBytes      int64            `json:"drive_size_bytes"`
+	DriveFilesCount     int64            `json:"drive_files_count"`
+	DriveFoldersCount   int64            `json:"drive_folders_count"`
 	DiskFreeBytes       uint64           `json:"disk_free_bytes"`
 	DiskTotalBytes      uint64           `json:"disk_total_bytes"`
 	DiskUsedPercent     float64          `json:"disk_used_percent"`
