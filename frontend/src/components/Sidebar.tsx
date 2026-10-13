@@ -5,7 +5,7 @@ import {
   BookOpen, Settings, HardDrive, ShieldCheck 
 } from 'lucide-react';
 
-export type ActiveTab = 'dashboard' | 'backups' | 'apps' | 'audit' | 'docs' | 'settings';
+export type ActiveTab = 'dashboard' | 'drive' | 'backups' | 'apps' | 'audit' | 'docs' | 'settings';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -23,8 +23,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const primaryItems: { id: ActiveTab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+  const primaryItems: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: string; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+    { id: 'drive', label: 'InMeet Drive', icon: <HardDrive className="h-4 w-4" />, badge: 'BARU' },
     { id: 'backups', label: 'Daftar Backup', icon: <Database className="h-4 w-4" /> },
     { id: 'apps', label: 'Aplikasi & API Key', icon: <KeyRound className="h-4 w-4" />, adminOnly: true },
   ];

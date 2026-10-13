@@ -77,6 +77,7 @@ func main() {
 	backupRepo := repository.NewBackupRepository(db.Pool)
 	uploadRepo := repository.NewUploadRepository(db.Pool)
 	tokenRepo := repository.NewDownloadTokenRepository(db.Pool)
+	driveRepo := repository.NewDriveRepository(db.Pool)
 
 	// Seed initial admin user if empty
 	if err := userRepo.EnsureAdminUser(context.Background(), cfg.InitialAdminEmail, cfg.InitialAdminPassword); err != nil {
@@ -97,6 +98,7 @@ func main() {
 	appService := service.NewAppService(appRepo, apiKeyRepo, auditRepo)
 	uploadService := service.NewUploadService(localStorage, uploadRepo, backupRepo, auditRepo)
 	backupService := service.NewBackupService(localStorage, backupRepo, tokenRepo, auditRepo, authService)
+	driveService := service.NewDriveService(driveRepo, cfg.DriveStoragePath)
 
 	// 8. Initialize handlers
 	authHandler := handler.NewAuthHandler(cfg, authService)
@@ -104,6 +106,7 @@ func main() {
 	uploadHandler := handler.NewUploadHandler(appService, uploadService)
 	backupHandler := handler.NewBackupHandler(backupService)
 	statsHandler := handler.NewStatsHandler(cfg, backupService, auditRepo)
+	driveHandler := handler.NewDriveHandler(driveService)
 
 	// 9. Setup router
 	r := chi.NewRouter()
@@ -188,6 +191,17 @@ func main() {
 		r.Get("/{id}", backupHandler.HandleGet)
 		r.Post("/{id}/download-link", backupHandler.HandleCreateDownloadLink)
 		r.Delete("/{id}", backupHandler.HandleDelete) // Manual delete (requires 2FA)
+	})
+
+	// Drive routes (Google Drive-like personal storage, Session authenticated)
+	r.Route("/api/v1/drive", func(r chi.Router) {
+		r.Use(handler.RequireAuth)
+		r.Get("/items", driveHandler.HandleList)
+		r.Post("/folder", driveHandler.HandleCreateFolder)
+		r.Post("/upload", driveHandler.HandleUpload)
+		r.Get("/items/{id}/download", driveHandler.HandleDownload)
+		r.Delete("/items/{id}", driveHandler.HandleDelete)
+		r.Patch("/items/{id}", driveHandler.HandleRename)
 	})
 
 	// Dashboard stats & Audit log

@@ -87,3 +87,32 @@ export interface AuditLog {
   details: Record<string, any>;
   created_at: string;
 }
+
+export type DriveItemType = 'file' | 'folder';
+
+export interface DriveItem {
+  id: string;
+  user_id: string;
+  parent_id: string | null;
+  name: string;
+  type: DriveItemType;
+  size_bytes: number;
+  mime_type: string;
+  created_at: string;
+  updated_at: string;
+  item_count?: number;
+}
+
+export interface DriveBreadcrumb {
+  id: string | null;
+  name: string;
+}
+
+export interface DriveListResponse {
+  items: DriveItem[];
+  current_folder?: DriveItem;
+  breadcrumbs: DriveBreadcrumb[];
+  total_items: number;
+  total_bytes: number;
+}
+

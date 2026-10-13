@@ -55,6 +55,7 @@ func (db *DB) Close() {
 func (db *DB) Migrate(ctx context.Context) error {
 	migrationFiles := []string{
 		"migrations/001_initial_schema.sql",
+		"migrations/002_drive_schema.sql",
 	}
 
 	for _, file := range migrationFiles {

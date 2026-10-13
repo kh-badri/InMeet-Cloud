@@ -5,6 +5,7 @@ import { Navbar } from './components/Navbar';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { BottomNav } from './components/BottomNav';
 import { DashboardPage } from './pages/DashboardPage';
+import { DrivePage } from './pages/DrivePage';
 import { BackupsPage } from './pages/BackupsPage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
 import { AuditLogPage } from './pages/AuditLogPage';
@@ -110,6 +111,7 @@ export const App: React.FC = () => {
             {activeTab === 'dashboard' && (
               <DashboardPage onNavigate={handleTabChange} />
             )}
+            {activeTab === 'drive' && <DrivePage />}
             {activeTab === 'backups' && <BackupsPage />}
             {activeTab === 'apps' && <ApplicationsPage />}
             {activeTab === 'audit' && <AuditLogPage />}

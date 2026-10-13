@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Database, KeyRound, BookOpen, Settings } from 'lucide-react';
+import { LayoutDashboard, HardDrive, Database, KeyRound, Settings } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 
 interface BottomNavProps {
@@ -14,9 +14,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
 
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Beranda', icon: <LayoutDashboard className="h-5 w-5" /> },
+    { id: 'drive', label: 'Drive', icon: <HardDrive className="h-5 w-5" /> },
     { id: 'backups', label: 'Backup', icon: <Database className="h-5 w-5" /> },
     { id: 'apps', label: 'Aplikasi', icon: <KeyRound className="h-5 w-5" />, adminOnly: true },
-    { id: 'docs', label: 'Docs', icon: <BookOpen className="h-5 w-5" /> },
     { id: 'settings', label: 'Setelan', icon: <Settings className="h-5 w-5" /> },
   ];
 

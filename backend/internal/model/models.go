@@ -175,3 +175,38 @@ type DailyStatPoint struct {
 	TotalBytes int64  `json:"total_bytes"`
 	Count      int    `json:"count"`
 }
+
+type DriveItemType string
+
+const (
+	DriveItemTypeFile   DriveItemType = "file"
+	DriveItemTypeFolder DriveItemType = "folder"
+)
+
+type DriveItem struct {
+	ID          uuid.UUID     `json:"id"`
+	UserID      uuid.UUID     `json:"user_id"`
+	ParentID    *uuid.UUID    `json:"parent_id"`
+	Name        string        `json:"name"`
+	Type        DriveItemType `json:"type"`
+	SizeBytes   int64         `json:"size_bytes"`
+	MimeType    string        `json:"mime_type"`
+	StoragePath string        `json:"-"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+	ItemCount   *int          `json:"item_count,omitempty"`
+}
+
+type DriveBreadcrumb struct {
+	ID   *uuid.UUID `json:"id"`
+	Name string     `json:"name"`
+}
+
+type DriveListResponse struct {
+	Items         []*DriveItem      `json:"items"`
+	CurrentFolder *DriveItem        `json:"current_folder,omitempty"`
+	Breadcrumbs   []DriveBreadcrumb `json:"breadcrumbs"`
+	TotalItems    int               `json:"total_items"`
+	TotalBytes    int64             `json:"total_bytes"`
+}
+

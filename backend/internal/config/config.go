@@ -23,6 +23,7 @@ type Config struct {
 	StorageEncryptionKey []byte
 	StorageDriver        string
 	StorageLocalPath     string
+	DriveStoragePath     string
 	S3Endpoint           string
 	S3Region             string
 	S3Bucket             string
@@ -61,6 +62,7 @@ func Load(envFile string) (*Config, error) {
 		DBMaxIdleConns:       getEnvInt("DB_MAX_IDLE_CONNS", 10),
 		StorageDriver:        getEnv("STORAGE_DRIVER", "local"),
 		StorageLocalPath:     getEnv("STORAGE_LOCAL_PATH", "/var/www/cloudinmeet/storage/backups"),
+		DriveStoragePath:     getEnv("DRIVE_STORAGE_PATH", "/var/www/cloudinmeet/storage/drive"),
 		S3Endpoint:           getEnv("S3_ENDPOINT", ""),
 		S3Region:             getEnv("S3_REGION", "us-east-1"),
 		S3Bucket:             getEnv("S3_BUCKET", "backupvault"),
