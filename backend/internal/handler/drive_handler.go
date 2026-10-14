@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,7 +40,16 @@ func (h *DriveHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	res, err := h.driveService.ListItems(r.Context(), user.ID, parentID, q)
+	var targetUserID *uuid.UUID
+	if user.Role != model.RoleUser {
+		if uidStr := r.URL.Query().Get("user_id"); uidStr != "" && uidStr != "all" && uidStr != "null" {
+			if uid, err := uuid.Parse(uidStr); err == nil {
+				targetUserID = &uid
+			}
+		}
+	}
+
+	res, err := h.driveService.ListItems(r.Context(), user, targetUserID, parentID, q)
 	if err != nil {
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -73,8 +83,12 @@ func (h *DriveHandler) HandleCreateFolder(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	item, err := h.driveService.CreateFolder(r.Context(), user.ID, parentID, req.Name)
+	item, err := h.driveService.CreateFolder(r.Context(), user, parentID, req.Name)
 	if err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -116,7 +130,7 @@ func (h *DriveHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.driveService.UploadFile(
 		r.Context(),
-		user.ID,
+		user,
 		parentID,
 		relativePath,
 		header.Filename,
@@ -125,6 +139,10 @@ func (h *DriveHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		mimeType,
 	)
 	if err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -146,7 +164,7 @@ func (h *DriveHandler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.driveService.GetItem(r.Context(), user.ID, id)
+	item, err := h.driveService.GetItem(r.Context(), user, id)
 	if err != nil {
 		http.Error(w, "item tidak ditemukan", http.StatusNotFound)
 		return
@@ -156,11 +174,12 @@ func (h *DriveHandler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		"name":       item.Name,
 		"type":       item.Type,
 		"size_bytes": item.SizeBytes,
+		"owner_id":   item.UserID.String(),
 	})
 
 	// Folder download -> streamed ZIP archive
 	if item.Type == model.DriveItemTypeFolder {
-		if err := h.driveService.ZipFolder(r.Context(), user.ID, item.ID, w); err != nil {
+		if err := h.driveService.ZipFolder(r.Context(), user, item.ID, w); err != nil {
 			http.Error(w, "gagal membuat arsip zip: "+err.Error(), http.StatusInternalServerError)
 		}
 		return
@@ -211,7 +230,11 @@ func (h *DriveHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.driveService.DeleteItem(r.Context(), user.ID, id); err != nil {
+	if err := h.driveService.DeleteItem(r.Context(), user, id); err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -249,7 +272,11 @@ func (h *DriveHandler) HandleRename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.driveService.RenameItem(r.Context(), user.ID, id, cleanName); err != nil {
+	if err := h.driveService.RenameItem(r.Context(), user, id, cleanName); err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -277,7 +304,11 @@ func (h *DriveHandler) HandleMove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.driveService.MoveItem(r.Context(), user.ID, id, req.TargetParentID); err != nil {
+	if err := h.driveService.MoveItem(r.Context(), user, id, req.TargetParentID); err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -292,7 +323,16 @@ func (h *DriveHandler) HandleListFolders(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	folders, err := h.driveService.ListAllFolders(r.Context(), user.ID)
+	var targetUserID *uuid.UUID
+	if user.Role != model.RoleUser {
+		if uidStr := r.URL.Query().Get("user_id"); uidStr != "" && uidStr != "all" && uidStr != "null" {
+			if uid, err := uuid.Parse(uidStr); err == nil {
+				targetUserID = &uid
+			}
+		}
+	}
+
+	folders, err := h.driveService.ListAllFolders(r.Context(), user, targetUserID)
 	if err != nil {
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -314,8 +354,12 @@ func (h *DriveHandler) HandleInitUpload(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	res, err := h.driveService.InitUploadSession(r.Context(), user.ID, &req)
+	res, err := h.driveService.InitUploadSession(r.Context(), user, &req)
 	if err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -361,8 +405,12 @@ func (h *DriveHandler) HandleUploadChunk(w http.ResponseWriter, r *http.Request)
 		defer file.Close()
 	}
 
-	uploadedBytes, err := h.driveService.SaveChunk(r.Context(), user.ID, uploadID, chunkIndex, chunkReader)
+	uploadedBytes, err := h.driveService.SaveChunk(r.Context(), user, uploadID, chunkIndex, chunkReader)
 	if err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -387,8 +435,12 @@ func (h *DriveHandler) HandleCompleteUpload(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	item, err := h.driveService.CompleteUploadSession(r.Context(), user.ID, req.UploadID)
+	item, err := h.driveService.CompleteUploadSession(r.Context(), user, req.UploadID)
 	if err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -403,7 +455,7 @@ func (h *DriveHandler) HandleGetUploadSessions(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	sessions, err := h.driveService.GetActiveUploadSessions(r.Context(), user.ID)
+	sessions, err := h.driveService.GetActiveUploadSessions(r.Context(), user)
 	if err != nil {
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -426,7 +478,11 @@ func (h *DriveHandler) HandleAbortUpload(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.driveService.AbortUploadSession(r.Context(), user.ID, id); err != nil {
+	if err := h.driveService.AbortUploadSession(r.Context(), user, id); err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -441,7 +497,16 @@ func (h *DriveHandler) HandleListTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := h.driveService.ListTrash(r.Context(), user.ID)
+	var targetUserID *uuid.UUID
+	if user.Role != model.RoleUser {
+		if uidStr := r.URL.Query().Get("user_id"); uidStr != "" && uidStr != "all" && uidStr != "null" {
+			if uid, err := uuid.Parse(uidStr); err == nil {
+				targetUserID = &uid
+			}
+		}
+	}
+
+	items, err := h.driveService.ListTrash(r.Context(), user, targetUserID)
 	if err != nil {
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -466,7 +531,11 @@ func (h *DriveHandler) HandleRestoreTrash(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.driveService.RestoreItem(r.Context(), user.ID, id); err != nil {
+	if err := h.driveService.RestoreItem(r.Context(), user, id); err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -488,7 +557,11 @@ func (h *DriveHandler) HandlePermanentDeleteTrash(w http.ResponseWriter, r *http
 		return
 	}
 
-	if err := h.driveService.PermanentDeleteItem(r.Context(), user.ID, id); err != nil {
+	if err := h.driveService.PermanentDeleteItem(r.Context(), user, id); err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -503,7 +576,20 @@ func (h *DriveHandler) HandleEmptyTrash(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.driveService.EmptyTrash(r.Context(), user.ID); err != nil {
+	var targetUserID *uuid.UUID
+	if user.Role != model.RoleUser {
+		if uidStr := r.URL.Query().Get("user_id"); uidStr != "" && uidStr != "all" && uidStr != "null" {
+			if uid, err := uuid.Parse(uidStr); err == nil {
+				targetUserID = &uid
+			}
+		}
+	}
+
+	if err := h.driveService.EmptyTrash(r.Context(), user, targetUserID); err != nil {
+		if errors.Is(err, service.ErrViewerReadOnly) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

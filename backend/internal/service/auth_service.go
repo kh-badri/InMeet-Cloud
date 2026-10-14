@@ -432,12 +432,14 @@ func (s *AuthService) CreateTeamUser(ctx context.Context, adminID uuid.UUID, ema
 	if role == "" {
 		role = model.RoleUser
 	}
-	if role != model.RoleUser && role != model.RoleViewer {
-		return nil, errors.New("hanya dapat membuat peran user atau viewer untuk tim")
+	if role != model.RoleUser && role != model.RoleViewer && role != model.RoleAdmin {
+		return nil, errors.New("peran tidak valid. Pilihan: user, viewer, atau admin")
 	}
 
-	if quotaBytes <= 0 {
-		quotaBytes = 16106127360 // 15 GB
+	if role == model.RoleAdmin || role == model.RoleViewer {
+		quotaBytes = 0
+	} else if quotaBytes <= 0 {
+		quotaBytes = 16106127360 // 15 GB default
 	}
 
 	// Check if already used
@@ -463,6 +465,33 @@ func (s *AuthService) CreateTeamUser(ctx context.Context, adminID uuid.UUID, ema
 	})
 
 	return user, nil
+}
+
+func (s *AuthService) UpdateTeamUserQuota(ctx context.Context, adminID, targetUserID uuid.UUID, quotaBytes int64) error {
+	if quotaBytes < 0 {
+		return errors.New("kuota penyimpanan tidak valid")
+	}
+
+	target, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+
+	if target.Role == model.RoleAdmin {
+		return errors.New("kuota administrator tidak terbatas")
+	}
+
+	if err := s.userRepo.UpdateUserQuota(ctx, targetUserID, quotaBytes); err != nil {
+		return err
+	}
+
+	s.auditRepo.LogCtx(ctx, "user", adminID.String(), "team_user_quota_updated", "auth", targetUserID.String(), map[string]interface{}{
+		"email":           target.Email,
+		"old_quota_bytes": target.StorageQuotaBytes,
+		"new_quota_bytes": quotaBytes,
+	})
+
+	return nil
 }
 
 func (s *AuthService) ListTeamUsers(ctx context.Context) ([]*model.User, error) {

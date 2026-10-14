@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, formatBytes, formatDate } from '../lib/api';
-import { DriveItem, DriveListResponse, DriveFolderTreeItem } from '../types';
+import { DriveItem, DriveListResponse, DriveFolderTreeItem, User as UserModel } from '../types';
 import { useDriveUpload } from '../context/DriveUploadContext';
+import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
 import {
   Folder, FolderPlus, Upload, File, FileText, FileArchive,
@@ -60,6 +61,10 @@ function buildFolderHierarchy(
 export const DrivePage: React.FC = () => {
   const queryClient = useQueryClient();
   const { startUpload } = useDriveUpload();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isViewer = user?.role === 'viewer';
+  const isAdminOrViewer = isAdmin || isViewer;
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<'drive' | 'trash'>('drive');
@@ -67,6 +72,7 @@ export const DrivePage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterUserId, setFilterUserId] = useState<string>('all');
 
   // Modals state
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
@@ -84,6 +90,13 @@ export const DrivePage: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Team users query for Admin & Viewer filtering
+  const { data: teamUsers } = useQuery<UserModel[]>({
+    queryKey: ['team-users'],
+    queryFn: () => apiRequest<UserModel[]>('/api/v1/users'),
+    enabled: isAdminOrViewer,
+  });
 
   // File input refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,11 +126,14 @@ export const DrivePage: React.FC = () => {
 
   // Fetch Drive items
   const { data, isLoading, isFetching, refetch } = useQuery<DriveListResponse>({
-    queryKey: ['drive-items', currentFolderId, debouncedSearch],
+    queryKey: ['drive-items', currentFolderId, debouncedSearch, filterUserId],
     queryFn: () => {
       const params = new URLSearchParams();
       if (currentFolderId) params.set('parent_id', currentFolderId);
       if (debouncedSearch) params.set('q', debouncedSearch);
+      if (isAdminOrViewer && filterUserId && filterUserId !== 'all') {
+        params.set('user_id', filterUserId);
+      }
       return apiRequest<DriveListResponse>(`/api/v1/drive/items?${params.toString()}`);
     },
   });
@@ -189,8 +205,15 @@ export const DrivePage: React.FC = () => {
     isFetching: isTrashFetching,
     refetch: refetchTrash,
   } = useQuery<{ items: DriveItem[] }>({
-    queryKey: ['drive-trash'],
-    queryFn: () => apiRequest<{ items: DriveItem[] }>('/api/v1/drive/trash'),
+    queryKey: ['drive-trash', filterUserId],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (isAdminOrViewer && filterUserId && filterUserId !== 'all') {
+        params.set('user_id', filterUserId);
+      }
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      return apiRequest<{ items: DriveItem[] }>(`/api/v1/drive/trash${qs}`);
+    },
   });
 
   // Restore Trash Item Mutation
@@ -249,8 +272,15 @@ export const DrivePage: React.FC = () => {
 
   // Fetch all user folders for destination picker
   const { data: allFolders } = useQuery<DriveFolderTreeItem[]>({
-    queryKey: ['drive-folders'],
-    queryFn: () => apiRequest<DriveFolderTreeItem[]>('/api/v1/drive/folders'),
+    queryKey: ['drive-folders', filterUserId],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (isAdminOrViewer && filterUserId && filterUserId !== 'all') {
+        params.set('user_id', filterUserId);
+      }
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      return apiRequest<DriveFolderTreeItem[]>(`/api/v1/drive/folders${qs}`);
+    },
     enabled: !!moveTarget,
   });
 
@@ -280,6 +310,10 @@ export const DrivePage: React.FC = () => {
 
   // Helper to upload list of files using the background chunked resumable upload engine
   const handleUploadFiles = async (files: FileList | File[]) => {
+    if (isViewer) {
+      setActionError('Peran Administrator Hanya-Lihat tidak diizinkan mengunggah berkas');
+      return;
+    }
     if (!files || files.length === 0) return;
     setActionError(null);
     const currentFolderName = data?.current_folder?.name || (currentFolderId ? 'Folder' : 'Drive Saya');
@@ -291,7 +325,7 @@ export const DrivePage: React.FC = () => {
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (activeTab === 'trash') return;
+    if (activeTab === 'trash' || isViewer) return;
     setIsDragOver(true);
   };
 
@@ -303,7 +337,7 @@ export const DrivePage: React.FC = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    if (activeTab === 'trash') return;
+    if (activeTab === 'trash' || isViewer) return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleUploadFiles(e.dataTransfer.files);
     }
@@ -431,6 +465,16 @@ export const DrivePage: React.FC = () => {
         </div>
       )}
 
+      {/* Viewer Read-Only Notice Banner */}
+      {isViewer && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-blue-300 bg-blue-50/80 p-3.5 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 text-xs shadow-xs animate-fade-in">
+          <AlertCircle className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+          <span>
+            <strong>Mode Administrator Hanya-Lihat (Read-Only):</strong> Anda dapat memantau dan mengunduh seluruh data InMeet Drive milik semua anggota tim, namun tidak memiliki izin untuk mengunggah, mengubah nama, memindahkan, atau menghapus berkas/folder.
+          </span>
+        </div>
+      )}
+
       {/* Header and Toolbar Bento Box */}
       <div className="rounded-2xl border border-[#92B4EC] bg-white p-5 shadow-xs dark:border-[#1E3E62] dark:bg-[#0B192C]">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -456,10 +500,10 @@ export const DrivePage: React.FC = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {activeTab === 'trash'
                     ? trashData
-                      ? `${trashData.items.length} item dalam karantina (${formatBytes(
-                          trashData.items.reduce((acc, i) => acc + (i.size_bytes || 0), 0)
-                        )})`
-                      : 'Memuat data sampah...'
+                    ? `${trashData.items.length} item dalam karantina (${formatBytes(
+                        trashData.items.reduce((acc, i) => acc + (i.size_bytes || 0), 0)
+                      )})`
+                    : 'Memuat data sampah...'
                     : data
                     ? `${data.total_items} item tersimpan`
                     : 'Memuat data...'}
@@ -484,7 +528,7 @@ export const DrivePage: React.FC = () => {
                   </div>
                 ) : activeTab === 'drive' && data ? (
                   <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                    ({formatBytes(data.total_bytes)}) · <span className="text-emerald-500 font-bold">Unlimited (Admin)</span>
+                    ({formatBytes(data.total_bytes)}) · <span className="text-emerald-500 font-bold">Unlimited {isAdmin ? '(Admin)' : isViewer ? '(Viewer)' : ''}</span>
                   </span>
                 ) : null}
               </div>
@@ -538,29 +582,33 @@ export const DrivePage: React.FC = () => {
 
             {activeTab === 'drive' ? (
               <>
-                <button
-                  onClick={() => setIsNewFolderOpen(true)}
-                  className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62]/40 transition-colors"
-                >
-                  <FolderPlus className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
-                  <span>+ Folder Baru</span>
-                </button>
+                {!isViewer && (
+                  <>
+                    <button
+                      onClick={() => setIsNewFolderOpen(true)}
+                      className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62]/40 transition-colors"
+                    >
+                      <FolderPlus className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+                      <span>+ Folder Baru</span>
+                    </button>
 
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white dark:hover:bg-[#FF6701] transition-colors"
-                >
-                  <Upload className="h-4 w-4 text-white" />
-                  <span>Unggah Berkas</span>
-                </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white dark:hover:bg-[#FF6701] transition-colors"
+                    >
+                      <Upload className="h-4 w-4 text-white" />
+                      <span>Unggah Berkas</span>
+                    </button>
 
-                <button
-                  onClick={() => folderInputRef.current?.click()}
-                  className="flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-[#FF6701]/10 px-3 py-2 text-xs font-bold text-[#FF6701] hover:bg-[#FF6701] hover:text-white dark:border-[#FF6500]/40 dark:bg-[#1E3E62]/60 dark:text-[#FF6500] dark:hover:bg-[#FF6500] dark:hover:text-white transition-colors"
-                >
-                  <FolderArchive className="h-4 w-4" />
-                  <span>Unggah Folder</span>
-                </button>
+                    <button
+                      onClick={() => folderInputRef.current?.click()}
+                      className="flex items-center gap-1.5 rounded-xl border border-[#FF6701]/40 bg-[#FF6701]/10 px-3 py-2 text-xs font-bold text-[#FF6701] hover:bg-[#FF6701] hover:text-white dark:border-[#FF6500]/40 dark:bg-[#1E3E62]/60 dark:text-[#FF6500] dark:hover:bg-[#FF6500] dark:hover:text-white transition-colors"
+                    >
+                      <FolderArchive className="h-4 w-4" />
+                      <span>Unggah Folder</span>
+                    </button>
+                  </>
+                )}
 
                 <button
                   onClick={() => refetch()}
@@ -573,14 +621,16 @@ export const DrivePage: React.FC = () => {
               </>
             ) : (
               <>
-                <button
-                  onClick={() => setIsEmptyTrashOpen(true)}
-                  disabled={!trashData?.items || trashData.items.length === 0 || emptyTrashMutation.isPending}
-                  className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Trash2 className="h-4 w-4 text-white" />
-                  <span>Kosongkan Sampah</span>
-                </button>
+                {!isViewer && (
+                  <button
+                    onClick={() => setIsEmptyTrashOpen(true)}
+                    disabled={!trashData?.items || trashData.items.length === 0 || emptyTrashMutation.isPending}
+                    className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="h-4 w-4 text-white" />
+                    <span>Kosongkan Sampah</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => refetchTrash()}
@@ -659,9 +709,30 @@ export const DrivePage: React.FC = () => {
             </div>
           )}
 
-          {/* Search Input & View Toggle */}
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            <div className="relative flex-1 sm:w-56">
+          {/* User Filter, Search Input & View Toggle */}
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+            {isAdminOrViewer && (
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={filterUserId}
+                  onChange={(e) => {
+                    setFilterUserId(e.target.value);
+                    setCurrentFolderId(null);
+                  }}
+                  className="rounded-xl border border-[#92B4EC] bg-white px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-white"
+                  title="Filter data InMeet Drive berdasarkan pengguna"
+                >
+                  <option value="all">Semua Pengguna (Semua Tim)</option>
+                  {teamUsers?.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.email} ({u.role === 'admin' ? 'Admin' : u.role === 'viewer' ? 'Admin (Lihat)' : 'User'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="relative flex-1 sm:w-52">
               <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
@@ -830,28 +901,42 @@ export const DrivePage: React.FC = () => {
                                 : 'Folder'
                               : formatBytes(item.size_bytes)}
                           </span>
-                          <span>{item.trashed_at ? formatDate(item.trashed_at).split(',')[0] : ''}</span>
+                          {isAdminOrViewer && filterUserId === 'all' && item.owner_email ? (
+                            <span className="font-mono text-[9px] truncate max-w-[80px]" title={`Pemilik: ${item.owner_email}`}>
+                              👤 {item.owner_email.split('@')[0]}
+                            </span>
+                          ) : (
+                            <span>{item.trashed_at ? formatDate(item.trashed_at).split(',')[0] : ''}</span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between gap-2">
-                      <button
-                        onClick={() => restoreMutation.mutate(item.id)}
-                        disabled={restoreMutation.isPending}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-2.5 py-1.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors disabled:opacity-50"
-                        title="Pulihkan ke Drive Saya"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5 text-white" />
-                        <span>Pulihkan</span>
-                      </button>
-                      <button
-                        onClick={() => setPermanentDeleteTarget(item)}
-                        className="p-1.5 rounded-xl border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
-                        title="Hapus Permanen"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {!isViewer ? (
+                        <>
+                          <button
+                            onClick={() => restoreMutation.mutate(item.id)}
+                            disabled={restoreMutation.isPending}
+                            className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-2.5 py-1.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors disabled:opacity-50"
+                            title="Pulihkan ke Drive Saya"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 text-white" />
+                            <span>Pulihkan</span>
+                          </button>
+                          <button
+                            onClick={() => setPermanentDeleteTarget(item)}
+                            className="p-1.5 rounded-xl border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
+                            title="Hapus Permanen"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic text-center w-full py-0.5">
+                          Mode Hanya-Lihat
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -864,6 +949,9 @@ export const DrivePage: React.FC = () => {
                   <thead className="border-b border-[#92B4EC]/40 bg-slate-50/50 dark:border-[#1E3E62] dark:bg-[#000000] text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold">
                     <tr>
                       <th className="px-4 py-3">Nama Berkas / Folder</th>
+                      {isAdminOrViewer && filterUserId === 'all' && (
+                        <th className="px-4 py-3">Pemilik</th>
+                      )}
                       <th className="px-4 py-3">Ukuran</th>
                       <th className="px-4 py-3">Tipe</th>
                       <th className="px-4 py-3">Waktu Masuk Sampah</th>
@@ -892,6 +980,11 @@ export const DrivePage: React.FC = () => {
                               </span>
                             </div>
                           </td>
+                          {isAdminOrViewer && filterUserId === 'all' && (
+                            <td className="px-4 py-3 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                              {item.owner_email || '-'}
+                            </td>
+                          )}
                           <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
                             {formatBytes(item.size_bytes)}
                           </td>
@@ -917,22 +1010,28 @@ export const DrivePage: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => restoreMutation.mutate(item.id)}
-                                disabled={restoreMutation.isPending}
-                                className="flex items-center gap-1.5 rounded-lg bg-[#FF6701] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors disabled:opacity-50"
-                                title="Pulihkan ke Drive Saya"
-                              >
-                                <RotateCcw className="h-3.5 w-3.5 text-white" />
-                                <span>Pulihkan</span>
-                              </button>
-                              <button
-                                onClick={() => setPermanentDeleteTarget(item)}
-                                className="p-1.5 rounded-lg border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
-                                title="Hapus Permanen"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {!isViewer ? (
+                                <>
+                                  <button
+                                    onClick={() => restoreMutation.mutate(item.id)}
+                                    disabled={restoreMutation.isPending}
+                                    className="flex items-center gap-1.5 rounded-lg bg-[#FF6701] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors disabled:opacity-50"
+                                    title="Pulihkan ke Drive Saya"
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5 text-white" />
+                                    <span>Pulihkan</span>
+                                  </button>
+                                  <button
+                                    onClick={() => setPermanentDeleteTarget(item)}
+                                    className="p-1.5 rounded-lg border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
+                                    title="Hapus Permanen"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">Hanya Lihat</span>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -966,7 +1065,7 @@ export const DrivePage: React.FC = () => {
               ? `Tidak ada berkas atau folder yang cocok dengan pencarian "${debouncedSearch}".`
               : 'Tarik dan lepaskan berkas ke sini, atau klik tombol di bawah untuk mulai menyimpan.'}
           </p>
-          {!debouncedSearch && (
+          {!debouncedSearch && !isViewer && (
             <div className="flex items-center gap-2 mt-5">
               <button
                 onClick={() => setIsNewFolderOpen(true)}
@@ -1022,22 +1121,29 @@ export const DrivePage: React.FC = () => {
                           <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
                             {folder.item_count !== undefined ? `${folder.item_count} item` : '0 item'}
                           </span>
+                          {isAdminOrViewer && filterUserId === 'all' && folder.owner_email && (
+                            <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[110px]" title={`Pemilik: ${folder.owner_email}`}>
+                              👤 {folder.owner_email.split('@')[0]}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* Actions Menu */}
                     <div className="flex items-center gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openMoveModal(folder);
-                        }}
-                        title="Pindahkan Folder"
-                        className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                      >
-                        <FolderSymlink className="h-3.5 w-3.5" />
-                      </button>
+                      {!isViewer && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openMoveModal(folder);
+                          }}
+                          title="Pindahkan Folder"
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                        >
+                          <FolderSymlink className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1048,27 +1154,31 @@ export const DrivePage: React.FC = () => {
                       >
                         <Download className="h-3.5 w-3.5" />
                       </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRenameTarget(folder);
-                          setNewName(folder.name);
-                        }}
-                        title="Ganti Nama"
-                        className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(folder);
-                        }}
-                        title="Hapus"
-                        className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {!isViewer && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenameTarget(folder);
+                              setNewName(folder.name);
+                            }}
+                            title="Ganti Nama"
+                            className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteTarget(folder);
+                            }}
+                            title="Hapus"
+                            className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1126,19 +1236,27 @@ export const DrivePage: React.FC = () => {
                         </p>
                         <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500 dark:text-slate-400">
                           <span>{formatBytes(file.size_bytes)}</span>
-                          <span>{formatDate(file.created_at).split(',')[0]}</span>
+                          {isAdminOrViewer && filterUserId === 'all' && file.owner_email ? (
+                            <span className="font-mono text-[9px] truncate max-w-[80px]" title={`Pemilik: ${file.owner_email}`}>
+                              👤 {file.owner_email.split('@')[0]}
+                            </span>
+                          ) : (
+                            <span>{formatDate(file.created_at).split(',')[0]}</span>
+                          )}
                         </div>
                       </div>
 
                       {/* Card Actions */}
                       <div className="mt-3 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between">
-                        <button
-                          onClick={() => openMoveModal(file)}
-                          title="Pindahkan Berkas"
-                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                        >
-                          <FolderSymlink className="h-3.5 w-3.5" />
-                        </button>
+                        {!isViewer ? (
+                          <button
+                            onClick={() => openMoveModal(file)}
+                            title="Pindahkan Berkas"
+                            className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                          >
+                            <FolderSymlink className="h-3.5 w-3.5" />
+                          </button>
+                        ) : <div />}
                         <button
                           onClick={() => handleDownload(file)}
                           title="Unduh"
@@ -1146,23 +1264,27 @@ export const DrivePage: React.FC = () => {
                         >
                           <Download className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          onClick={() => {
-                            setRenameTarget(file);
-                            setNewName(file.name);
-                          }}
-                          title="Ganti Nama"
-                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget(file)}
-                          title="Hapus"
-                          className="p-1 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {!isViewer && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setRenameTarget(file);
+                                setNewName(file.name);
+                              }}
+                              title="Ganti Nama"
+                              className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(file)}
+                              title="Hapus"
+                              className="p-1 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -1179,6 +1301,9 @@ export const DrivePage: React.FC = () => {
                   <thead className="border-b border-[#92B4EC]/40 bg-slate-50/50 dark:border-[#1E3E62] dark:bg-[#000000] text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold">
                     <tr>
                       <th className="px-4 py-3">Nama Berkas / Folder</th>
+                      {isAdminOrViewer && filterUserId === 'all' && (
+                        <th className="px-4 py-3">Pemilik</th>
+                      )}
                       <th className="px-4 py-3">Space Digunakan</th>
                       <th className="px-4 py-3">Tipe</th>
                       <th className="px-4 py-3">Tanggal Unggah</th>
@@ -1205,6 +1330,11 @@ export const DrivePage: React.FC = () => {
                             </span>
                           </div>
                         </td>
+                        {isAdminOrViewer && filterUserId === 'all' && (
+                          <td className="px-4 py-3 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                            {folder.owner_email || '-'}
+                          </td>
+                        )}
                         <td className="px-4 py-3 font-mono font-bold text-[#FF6701] dark:text-[#FEA82F]">
                           {formatBytes(folder.size_bytes)}
                         </td>
@@ -1216,13 +1346,15 @@ export const DrivePage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => openMoveModal(folder)}
-                              title="Pindahkan Folder"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                            >
-                              <FolderSymlink className="h-4 w-4" />
-                            </button>
+                            {!isViewer && (
+                              <button
+                                onClick={() => openMoveModal(folder)}
+                                title="Pindahkan Folder"
+                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                              >
+                                <FolderSymlink className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleDownload(folder)}
                               title="Download ZIP"
@@ -1230,23 +1362,27 @@ export const DrivePage: React.FC = () => {
                             >
                               <Download className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => {
-                                setRenameTarget(folder);
-                                setNewName(folder.name);
-                              }}
-                              title="Ganti Nama"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget(folder)}
-                              title="Hapus"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            {!isViewer && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setRenameTarget(folder);
+                                    setNewName(folder.name);
+                                  }}
+                                  title="Ganti Nama"
+                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteTarget(folder)}
+                                  title="Hapus"
+                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1272,6 +1408,11 @@ export const DrivePage: React.FC = () => {
                             </span>
                           </div>
                         </td>
+                        {isAdminOrViewer && filterUserId === 'all' && (
+                          <td className="px-4 py-3 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                            {file.owner_email || '-'}
+                          </td>
+                        )}
                         <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
                           {formatBytes(file.size_bytes)}
                         </td>
@@ -1292,13 +1433,15 @@ export const DrivePage: React.FC = () => {
                                 <Eye className="h-4 w-4" />
                               </button>
                             )}
-                            <button
-                              onClick={() => openMoveModal(file)}
-                              title="Pindahkan Berkas"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                            >
-                              <FolderSymlink className="h-4 w-4" />
-                            </button>
+                            {!isViewer && (
+                              <button
+                                onClick={() => openMoveModal(file)}
+                                title="Pindahkan Berkas"
+                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                              >
+                                <FolderSymlink className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleDownload(file)}
                               title="Unduh"
@@ -1306,23 +1449,27 @@ export const DrivePage: React.FC = () => {
                             >
                               <Download className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => {
-                                setRenameTarget(file);
-                                setNewName(file.name);
-                              }}
-                              title="Ganti Nama"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget(file)}
-                              title="Hapus"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            {!isViewer && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setRenameTarget(file);
+                                    setNewName(file.name);
+                                  }}
+                                  title="Ganti Nama"
+                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteTarget(file)}
+                                  title="Hapus"
+                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>

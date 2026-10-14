@@ -85,6 +85,18 @@ func RequireAdmin(next http.Handler) http.Handler {
 	})
 }
 
+// RequireAdminOrViewer enforces admin or viewer role
+func RequireAdminOrViewer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := GetCurrentUser(r.Context())
+		if user == nil || (user.Role != model.RoleAdmin && user.Role != model.RoleViewer) {
+			http.Error(w, `{"error":"forbidden: admin or viewer access required"}`, http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // CSRFMiddleware checks CSRF token for mutating requests when user session is present
 func CSRFMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

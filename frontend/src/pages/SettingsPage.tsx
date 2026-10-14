@@ -9,25 +9,27 @@ import {
   Copy, Check, AlertTriangle, Terminal,
   User, Lock, CheckCircle2, Clock, Play,
   Sliders, CheckSquare, History,
-  Users, UserPlus, Key, Trash2
+  Users, UserPlus, Key, Trash2, Eye
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
   const { user, refreshUser } = useAuth();
   const queryClient = useQueryClient();
   const isAdmin = user?.role === 'admin';
+  const isViewer = user?.role === 'viewer';
+  const isAdminOrViewer = isAdmin || isViewer;
 
   // Retention query & mutations
   const { data: apps } = useQuery<Application[]>({
     queryKey: ['apps'],
     queryFn: () => apiRequest<Application[]>('/api/v1/apps'),
-    enabled: isAdmin,
+    enabled: isAdminOrViewer,
   });
 
   const { data: retentionRuns, refetch: refetchRuns } = useQuery<any[]>({
     queryKey: ['retention-runs'],
     queryFn: () => apiRequest<any[]>('/api/v1/retention/runs'),
-    enabled: isAdmin,
+    enabled: isAdminOrViewer,
   });
 
   const [retentionRunResult, setRetentionRunResult] = useState<any | null>(null);
@@ -76,20 +78,25 @@ export const SettingsPage: React.FC = () => {
   const [isDisabling, setIsDisabling] = useState(false);
   const [disableCode, setDisableCode] = useState('');
 
-  // Team users query & states (Admin only)
+  // Team users query & states (Admin and Viewer can view)
   const { data: teamUsers, refetch: refetchUsers, isLoading: isLoadingUsers } = useQuery<UserModel[]>({
     queryKey: ['team-users'],
     queryFn: () => apiRequest<UserModel[]>('/api/v1/users'),
-    enabled: isAdmin,
+    enabled: isAdminOrViewer,
   });
 
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [addEmail, setAddEmail] = useState('');
   const [addPassword, setAddPassword] = useState('');
-  const [addRole, setAddRole] = useState<'user' | 'admin'>('user');
+  const [addRole, setAddRole] = useState<'user' | 'admin' | 'viewer'>('user');
   const [addQuotaGB, setAddQuotaGB] = useState(15);
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   const [addUserError, setAddUserError] = useState<string | null>(null);
+
+  const [quotaTarget, setQuotaTarget] = useState<UserModel | null>(null);
+  const [editQuotaGB, setEditQuotaGB] = useState(15);
+  const [isUpdatingQuota, setIsUpdatingQuota] = useState(false);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
 
   const [resetTarget, setResetTarget] = useState<UserModel | null>(null);
   const [resetNewPassword, setResetNewPassword] = useState('');
@@ -116,7 +123,7 @@ export const SettingsPage: React.FC = () => {
 
     setIsSubmittingUser(true);
     try {
-      const quotaBytes = addRole === 'admin' ? 0 : addQuotaGB * 1024 * 1024 * 1024;
+      const quotaBytes = addRole === 'user' ? addQuotaGB * 1024 * 1024 * 1024 : 0;
       await apiRequest('/api/v1/users', {
         method: 'POST',
         body: JSON.stringify({
@@ -132,12 +139,51 @@ export const SettingsPage: React.FC = () => {
       setAddRole('user');
       setAddQuotaGB(15);
       refetchUsers();
-      setUserActionMsg({ type: 'success', text: `Anggota tim "${addEmail}" berhasil ditambahkan dengan kuota ${addRole === 'admin' ? 'Unlimited' : `${addQuotaGB} GB`}!` });
+      setUserActionMsg({
+        type: 'success',
+        text: `Pengguna "${addEmail}" berhasil ditambahkan dengan peran ${
+          addRole === 'admin'
+            ? 'Administrator (Akses Penuh)'
+            : addRole === 'viewer'
+            ? 'Administrator (Hanya Lihat)'
+            : `Anggota Tim (${addQuotaGB} GB)`
+        }!`,
+      });
       setTimeout(() => setUserActionMsg(null), 4000);
     } catch (err: any) {
       setAddUserError(err.message || 'Gagal menambahkan anggota tim');
     } finally {
       setIsSubmittingUser(false);
+    }
+  };
+
+  const handleUpdateQuota = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quotaTarget) return;
+    setQuotaError(null);
+    if (editQuotaGB <= 0) {
+      setQuotaError('Kuota harus lebih besar dari 0 GB');
+      return;
+    }
+
+    setIsUpdatingQuota(true);
+    try {
+      const quotaBytes = editQuotaGB * 1024 * 1024 * 1024;
+      await apiRequest(`/api/v1/users/${quotaTarget.id}/quota`, {
+        method: 'PUT',
+        body: JSON.stringify({ storage_quota_bytes: quotaBytes }),
+      });
+      setQuotaTarget(null);
+      refetchUsers();
+      setUserActionMsg({
+        type: 'success',
+        text: `Kuota penyimpanan untuk ${quotaTarget.email} berhasil diubah menjadi ${editQuotaGB} GB!`,
+      });
+      setTimeout(() => setUserActionMsg(null), 4000);
+    } catch (err: any) {
+      setQuotaError(err.message || 'Gagal mengubah kuota');
+    } finally {
+      setIsUpdatingQuota(false);
     }
   };
 
@@ -620,8 +666,8 @@ export const SettingsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Manajemen Anggota Tim & Kuota Storage (Admin Only) */}
-      {isAdmin && (
+      {/* Manajemen Anggota Tim & Kuota Storage (Admin and Viewer) */}
+      {isAdminOrViewer && (
         <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-5 text-xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -633,26 +679,35 @@ export const SettingsPage: React.FC = () => {
                   Manajemen Anggota Tim & Kuota Storage
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Tambahkan akun tim dengan kuota InMeet Drive 15 GB dan akses Hanya-Lihat (Read-Only) pada Daftar Backup
+                  Kelola akun tim, peran administrator akses penuh vs hanya-lihat, dan kuota penyimpanan InMeet Drive
                 </p>
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                setAddUserError(null);
-                setAddEmail('');
-                setAddPassword('');
-                setAddRole('user');
-                setAddQuotaGB(15);
-                setIsAddUserOpen(true);
-              }}
-              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-3.5 py-2 text-xs font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20 shrink-0"
-            >
-              <UserPlus className="h-4 w-4 text-white" />
-              <span>+ Tambah Anggota Tim</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setAddUserError(null);
+                  setAddEmail('');
+                  setAddPassword('');
+                  setAddRole('user');
+                  setAddQuotaGB(15);
+                  setIsAddUserOpen(true);
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-3.5 py-2 text-xs font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20 shrink-0"
+              >
+                <UserPlus className="h-4 w-4 text-white" />
+                <span>+ Tambah Anggota Tim</span>
+              </button>
+            )}
           </div>
+
+          {isViewer && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300 flex items-center gap-2">
+              <Eye className="h-4 w-4 shrink-0" />
+              <span>Mode Administrator Hanya-Lihat: Anda dapat melihat seluruh daftar anggota tim dan pemakaian kuota, namun tidak memiliki izin menambah pengguna, mengubah kuota, atau menghapus akun.</span>
+            </div>
+          )}
 
           {userActionMsg && (
             <div
@@ -718,14 +773,16 @@ export const SettingsPage: React.FC = () => {
                             className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                               u.role === 'admin'
                                 ? 'bg-[#FF6701]/15 text-[#FF6701] dark:bg-[#FF6500]/20 dark:text-[#FF6500]'
+                                : u.role === 'viewer'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
                                 : 'bg-[#92B4EC]/30 text-slate-700 dark:bg-[#1E3E62] dark:text-[#FEA82F]'
                             }`}
                           >
-                            {u.role === 'admin' ? 'Administrator' : 'Anggota Tim'}
+                            {u.role === 'admin' ? 'Administrator (Penuh)' : u.role === 'viewer' ? 'Admin (Hanya Lihat)' : 'Anggota Tim'}
                           </span>
                         </td>
                         <td className="px-3 py-3">
-                          {u.role === 'admin' ? (
+                          {u.role === 'admin' || u.role === 'viewer' ? (
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">Unlimited (Admin)</span>
                           ) : (
                             <div className="space-y-1 min-w-[130px]">
@@ -747,41 +804,61 @@ export const SettingsPage: React.FC = () => {
                             className={`rounded px-2 py-0.5 text-[10px] font-medium ${
                               u.role === 'admin'
                                 ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                : u.role === 'viewer'
+                                ? 'bg-blue-100/70 text-blue-900 dark:bg-blue-950/40 dark:text-blue-300 font-semibold'
                                 : 'bg-amber-100/70 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300 font-semibold'
                             }`}
                           >
-                            {u.role === 'admin' ? 'Akses Penuh' : 'Hanya Lihat'}
+                            {u.role === 'admin' ? 'Akses Penuh' : u.role === 'viewer' ? 'Unduh & Lihat' : 'Hanya Lihat'}
                           </span>
                         </td>
                         <td className="px-3 py-3 text-slate-500 dark:text-slate-400">
                           {formatDate(u.created_at)}
                         </td>
                         <td className="px-3.5 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => {
-                                setResetError(null);
-                                setResetNewPassword('');
-                                setResetTarget(u);
-                              }}
-                              title="Reset Password"
-                              className="rounded-lg p-1.5 text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-800 dark:hover:bg-[#1E3E62] dark:hover:text-[#FF6500] transition-colors"
-                            >
-                              <Key className="h-3.5 w-3.5" />
-                            </button>
-                            {!isSelf && (
+                          {isAdmin ? (
+                            <div className="flex items-center justify-end gap-1">
+                              {u.role === 'user' && (
+                                <button
+                                  onClick={() => {
+                                    setQuotaError(null);
+                                    const gb = Math.round((u.storage_quota_bytes || 16106127360) / (1024 * 1024 * 1024));
+                                    setEditQuotaGB(gb > 0 ? gb : 15);
+                                    setQuotaTarget(u);
+                                  }}
+                                  title="Ubah Kuota Drive"
+                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-800 dark:hover:bg-[#1E3E62] dark:hover:text-[#FF6500] transition-colors"
+                                >
+                                  <Sliders className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => {
-                                  setDeleteError(null);
-                                  setDeleteTarget(u);
+                                  setResetError(null);
+                                  setResetNewPassword('');
+                                  setResetTarget(u);
                                 }}
-                                title="Hapus Pengguna"
-                                className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                title="Reset Password"
+                                className="rounded-lg p-1.5 text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-800 dark:hover:bg-[#1E3E62] dark:hover:text-[#FF6500] transition-colors"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Key className="h-3.5 w-3.5" />
                               </button>
-                            )}
-                          </div>
+                              {!isSelf && (
+                                <button
+                                  onClick={() => {
+                                    setDeleteError(null);
+                                    setDeleteTarget(u);
+                                  }}
+                                  title="Hapus Pengguna"
+                                  className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">Hanya Lihat</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -793,8 +870,8 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Kebijakan Retensi Otomatis & Pembersihan Storage (Admin Only) */}
-      {isAdmin && (
+      {/* Kebijakan Retensi Otomatis & Pembersihan Storage (Admin & Viewer) */}
+      {(isAdmin || user?.role === 'viewer') && (
         <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-5 text-xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -809,28 +886,34 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => runRetentionMutation.mutate(true)}
-                disabled={runRetentionMutation.isPending}
-                className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62]/40 transition-all disabled:opacity-50"
-              >
-                <CheckSquare className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" />
-                Simulasi (Dry-Run)
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm('Jalankan pembersihan retensi sekarang? Backup yang melebihi batas hari retensi akan langsung dipindahkan ke masa karantina.')) {
-                    runRetentionMutation.mutate(false);
-                  }
-                }}
-                disabled={runRetentionMutation.isPending}
-                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-3.5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 shadow-md shadow-[#FF6701]/20 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20"
-              >
-                <Play className="h-3.5 w-3.5 fill-current text-white" />
-                Jalankan Retensi Sekarang
-              </button>
-            </div>
+            {isAdmin ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => runRetentionMutation.mutate(true)}
+                  disabled={runRetentionMutation.isPending}
+                  className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62]/40 transition-all disabled:opacity-50"
+                >
+                  <CheckSquare className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" />
+                  Simulasi (Dry-Run)
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('Jalankan pembersihan retensi sekarang? Backup yang melebihi batas hari retensi akan langsung dipindahkan ke masa karantina.')) {
+                      runRetentionMutation.mutate(false);
+                    }
+                  }}
+                  disabled={runRetentionMutation.isPending}
+                  className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-3.5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 shadow-md shadow-[#FF6701]/20 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20"
+                >
+                  <Play className="h-3.5 w-3.5 fill-current text-white" />
+                  Jalankan Retensi Sekarang
+                </button>
+              </div>
+            ) : (
+              <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 dark:bg-[#000000] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#1E3E62] italic">
+                Mode Hanya-Lihat: Eksekusi retensi hanya dapat dipicu oleh Administrator Penuh
+              </span>
+            )}
           </div>
 
           {/* Retention Result Banner */}
@@ -1029,31 +1112,66 @@ export const SettingsPage: React.FC = () => {
             </label>
             <select
               value={addRole}
-              onChange={(e) => setAddRole(e.target.value as 'user' | 'admin')}
+              onChange={(e) => setAddRole(e.target.value as 'user' | 'admin' | 'viewer')}
               className="w-full rounded-xl border border-[#92B4EC]/80 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
             >
-              <option value="user">Anggota Tim (User) — Kuota Drive 15 GB, Backup Hanya-Lihat</option>
-              <option value="admin">Administrator — Akses Penuh & Kuota Unlimited</option>
+              <option value="user">Anggota Tim (User) — Kuota Kustom, Backup Hanya-Lihat</option>
+              <option value="admin">Administrator (Penuh) — Akses Penuh & Kuota Unlimited</option>
+              <option value="viewer">Administrator (Hanya-Lihat) — Akses Pantau Seluruh Data Tanpa Izin Hapus</option>
             </select>
           </div>
 
           {addRole === 'user' ? (
-            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#92B4EC]/10 p-3.5 dark:border-[#1E3E62] dark:bg-[#000000] space-y-1">
-              <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                Hak Akses & Alokasi Kuota:
+            <div className="space-y-3">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Alokasi Kuota InMeet Drive (GB)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="10000"
+                    required
+                    value={addQuotaGB}
+                    onChange={(e) => setAddQuotaGB(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full rounded-xl border border-[#92B4EC]/80 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
+                  />
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300">GB</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Dapat disesuaikan (misal 15, 20, 50, 100 GB). Setara dengan {formatBytes(addQuotaGB * 1024 * 1024 * 1024)}.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#92B4EC]/10 p-3.5 dark:border-[#1E3E62] dark:bg-[#000000] space-y-1">
+                <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                  Hak Akses & Isolasi Anggota Tim:
+                </span>
+                <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300 text-[11px]">
+                  <li><strong>InMeet Drive:</strong> Terisolasi penuh. Pengguna hanya dapat mengakses file dan folder miliknya sendiri hingga kuota <strong>{addQuotaGB} GB</strong>.</li>
+                  <li><strong>Daftar Backup:</strong> Hak akses <strong>Hanya Lihat (Read-Only)</strong> — tidak dapat mengunduh atau menghapus arsip backup.</li>
+                </ul>
+              </div>
+            </div>
+          ) : addRole === 'viewer' ? (
+            <div className="rounded-xl border border-blue-300 bg-blue-50/70 p-3.5 dark:border-blue-900/60 dark:bg-blue-950/20 space-y-1">
+              <span className="font-bold text-blue-700 dark:text-blue-400 block">
+                Hak Akses Administrator Hanya-Lihat (Read-Only):
               </span>
               <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300 text-[11px]">
-                <li><strong>InMeet Drive:</strong> Kuota penyimpanan <strong>15 GB</strong> (16.106.127.360 bytes).</li>
-                <li><strong>Daftar Backup:</strong> Hak akses <strong>Hanya Lihat (Read-Only)</strong> — tidak dapat mengunduh atau menghapus arsip backup.</li>
+                <li>Dapat melihat dan memantau seluruh data tim (seluruh berkas InMeet Drive semua pengguna, backup, audit log).</li>
+                <li>Dapat mengunduh file backup dan file drive untuk kebutuhan inspeksi/audit.</li>
+                <li><strong>Dilarang:</strong> Tidak dapat mengubah (rename/move) atau menghapus berkas, folder, backup, aplikasi, atau pengguna.</li>
               </ul>
             </div>
           ) : (
             <div className="rounded-xl border border-[#FEA82F]/40 bg-[#FEA82F]/10 p-3.5 dark:border-[#1E3E62] dark:bg-[#000000] space-y-1">
               <span className="font-bold text-[#FF6701] dark:text-[#FEA82F] block">
-                Hak Akses Administrator:
+                Hak Akses Administrator (Penuh):
               </span>
               <p className="text-slate-600 dark:text-slate-300 text-[11px]">
-                Akun administrator memiliki kapasitas penyimpanan tanpa batas (unlimited) dan hak kontrol penuh atas seluruh sistem.
+                Akun administrator penuh memiliki kuota unlimited dan kontrol penuh (melihat, mengunggah, mengubah, dan menghapus seluruh data sistem).
               </p>
             </div>
           )}
@@ -1171,6 +1289,68 @@ export const SettingsPage: React.FC = () => {
               </button>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Modal Ubah Kuota Anggota Tim */}
+      <Modal
+        isOpen={!!quotaTarget}
+        onClose={() => setQuotaTarget(null)}
+        title="Ubah Alokasi Kuota InMeet Drive"
+        maxWidth="max-w-md"
+      >
+        {quotaTarget && (
+          <form onSubmit={handleUpdateQuota} className="space-y-4 text-xs">
+            {quotaError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3 text-xs text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400">
+                {quotaError}
+              </div>
+            )}
+
+            <div>
+              <span className="font-medium text-slate-500 dark:text-slate-400">Akun Anggota Tim:</span>
+              <p className="mt-0.5 font-bold text-slate-900 dark:text-white text-sm">{quotaTarget.email}</p>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Alokasi Kuota Penyimpanan (GB)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="10000"
+                  required
+                  autoFocus
+                  value={editQuotaGB}
+                  onChange={(e) => setEditQuotaGB(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full rounded-xl border border-[#92B4EC]/80 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
+                />
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">GB</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Setara dengan {formatBytes(editQuotaGB * 1024 * 1024 * 1024)}.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]">
+              <button
+                type="button"
+                onClick={() => setQuotaTarget(null)}
+                className="rounded-xl px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isUpdatingQuota}
+                className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20"
+              >
+                {isUpdatingQuota ? 'Menyimpan...' : 'Simpan Kuota'}
+              </button>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

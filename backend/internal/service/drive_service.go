@@ -20,10 +20,12 @@ import (
 )
 
 var (
-	ErrInvalidItemName     = errors.New("nama berkas atau folder tidak valid")
-	ErrParentNotFound      = errors.New("folder induk tidak ditemukan")
-	ErrInvalidDestination  = errors.New("folder tujuan tidak valid")
-	ErrCircularFolderMove  = errors.New("tidak dapat memindahkan folder ke dalam subfolder turunannya")
+	ErrInvalidItemName    = errors.New("nama berkas atau folder tidak valid")
+	ErrParentNotFound     = errors.New("folder induk tidak ditemukan")
+	ErrInvalidDestination = errors.New("folder tujuan tidak valid")
+	ErrCircularFolderMove = errors.New("tidak dapat memindahkan folder ke dalam subfolder turunannya")
+	ErrViewerReadOnly     = errors.New("peran Administrator Hanya-Lihat tidak diizinkan mengubah atau menghapus data")
+	ErrAccessDenied       = errors.New("akses ditolak")
 )
 
 type DriveService struct {
@@ -62,8 +64,19 @@ func (s *DriveService) LogAudit(ctx context.Context, userID uuid.UUID, action, t
 	}
 }
 
-func (s *DriveService) ListItems(ctx context.Context, userID uuid.UUID, parentID *uuid.UUID, query string) (*model.DriveListResponse, error) {
-	items, err := s.repo.List(ctx, userID, parentID, query)
+func (s *DriveService) ListItems(ctx context.Context, caller *model.User, targetUserID *uuid.UUID, parentID *uuid.UUID, query string) (*model.DriveListResponse, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+
+	var effectiveUserID *uuid.UUID
+	if caller.Role == model.RoleUser {
+		effectiveUserID = &caller.ID
+	} else {
+		effectiveUserID = targetUserID
+	}
+
+	items, err := s.repo.List(ctx, effectiveUserID, parentID, query)
 	if err != nil {
 		return nil, fmt.Errorf("gagal mengambil daftar item: %w", err)
 	}
@@ -72,26 +85,32 @@ func (s *DriveService) ListItems(ctx context.Context, userID uuid.UUID, parentID
 	var breadcrumbs []model.DriveBreadcrumb
 
 	if parentID != nil {
-		currentFolder, err = s.repo.GetByID(ctx, *parentID, userID)
+		if caller.Role == model.RoleUser {
+			currentFolder, err = s.repo.GetByID(ctx, *parentID, caller.ID)
+		} else {
+			currentFolder, err = s.repo.GetByIDAny(ctx, *parentID)
+		}
 		if err != nil && !errors.Is(err, repository.ErrDriveItemNotFound) {
 			return nil, fmt.Errorf("gagal mengambil detail folder: %w", err)
 		}
 
-		crumbs, err := s.repo.GetBreadcrumbs(ctx, userID, *parentID)
+		crumbs, err := s.repo.GetBreadcrumbs(ctx, *parentID)
 		if err == nil {
 			breadcrumbs = crumbs
 		}
 	}
 
-	totalItems, totalBytes, err := s.repo.GetStats(ctx, userID)
+	totalItems, totalBytes, err := s.repo.GetStats(ctx, effectiveUserID)
 	if err != nil {
 		totalItems = len(items)
 		totalBytes = 0
 	}
 
 	var quotaBytes int64 = 0
-	if s.userRepo != nil {
-		u, err := s.userRepo.GetByID(ctx, userID)
+	if caller.Role == model.RoleUser {
+		quotaBytes = caller.StorageQuotaBytes
+	} else if effectiveUserID != nil && s.userRepo != nil {
+		u, err := s.userRepo.GetByID(ctx, *effectiveUserID)
 		if err == nil && u != nil {
 			quotaBytes = u.StorageQuotaBytes
 		}
@@ -108,28 +127,20 @@ func (s *DriveService) ListItems(ctx context.Context, userID uuid.UUID, parentID
 	}, nil
 }
 
-func (s *DriveService) CreateFolder(ctx context.Context, userID uuid.UUID, parentID *uuid.UUID, name string) (*model.DriveItem, error) {
+func (s *DriveService) createFolderForOwner(ctx context.Context, caller *model.User, parentID *uuid.UUID, name string, ownerID uuid.UUID) (*model.DriveItem, error) {
 	cleanName := strings.TrimSpace(name)
 	if cleanName == "" || strings.Contains(cleanName, "/") || strings.Contains(cleanName, "\\") {
 		return nil, ErrInvalidItemName
 	}
 
-	if parentID != nil {
-		parent, err := s.repo.GetByID(ctx, *parentID, userID)
-		if err != nil || parent.Type != model.DriveItemTypeFolder {
-			return nil, ErrParentNotFound
-		}
-	}
-
-	// Check if already exists under this parent
-	existing, err := s.repo.FindFolderByName(ctx, userID, parentID, cleanName)
+	existing, err := s.repo.FindFolderByName(ctx, ownerID, parentID, cleanName)
 	if err == nil && existing != nil {
 		return existing, nil
 	}
 
 	item := &model.DriveItem{
 		ID:        uuid.New(),
-		UserID:    userID,
+		UserID:    ownerID,
 		ParentID:  parentID,
 		Name:      cleanName,
 		Type:      model.DriveItemTypeFolder,
@@ -150,17 +161,49 @@ func (s *DriveService) CreateFolder(ctx context.Context, userID uuid.UUID, paren
 	if parentID != nil {
 		parentStr = parentID.String()
 	}
-	s.LogAudit(ctx, userID, "drive_folder_created", item.ID.String(), map[string]interface{}{
+	s.LogAudit(ctx, caller.ID, "drive_folder_created", item.ID.String(), map[string]interface{}{
 		"name":      cleanName,
 		"parent_id": parentStr,
+		"owner_id":  ownerID.String(),
 	})
 
 	return item, nil
 }
 
+func (s *DriveService) CreateFolder(ctx context.Context, caller *model.User, parentID *uuid.UUID, name string) (*model.DriveItem, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return nil, ErrViewerReadOnly
+	}
+
+	cleanName := strings.TrimSpace(name)
+	if cleanName == "" || strings.Contains(cleanName, "/") || strings.Contains(cleanName, "\\") {
+		return nil, ErrInvalidItemName
+	}
+
+	ownerID := caller.ID
+	if parentID != nil {
+		var parent *model.DriveItem
+		var err error
+		if caller.Role == model.RoleUser {
+			parent, err = s.repo.GetByID(ctx, *parentID, caller.ID)
+		} else {
+			parent, err = s.repo.GetByIDAny(ctx, *parentID)
+		}
+		if err != nil || parent.Type != model.DriveItemTypeFolder {
+			return nil, ErrParentNotFound
+		}
+		ownerID = parent.UserID
+	}
+
+	return s.createFolderForOwner(ctx, caller, parentID, cleanName, ownerID)
+}
+
 func (s *DriveService) UploadFile(
 	ctx context.Context,
-	userID uuid.UUID,
+	caller *model.User,
 	initialParentID *uuid.UUID,
 	relativePath string,
 	filename string,
@@ -168,18 +211,40 @@ func (s *DriveService) UploadFile(
 	size int64,
 	mimeType string,
 ) (*model.DriveItem, error) {
-	// Check user storage quota (e.g. 15GB for role user)
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return nil, ErrViewerReadOnly
+	}
+
+	effectiveParentID := initialParentID
+	ownerID := caller.ID
+	if initialParentID != nil {
+		var parent *model.DriveItem
+		var err error
+		if caller.Role == model.RoleUser {
+			parent, err = s.repo.GetByID(ctx, *initialParentID, caller.ID)
+		} else {
+			parent, err = s.repo.GetByIDAny(ctx, *initialParentID)
+		}
+		if err != nil || parent.Type != model.DriveItemTypeFolder {
+			return nil, ErrParentNotFound
+		}
+		ownerID = parent.UserID
+	}
+
+	// Check owner storage quota
 	if s.userRepo != nil && size > 0 {
-		user, err := s.userRepo.GetByID(ctx, userID)
+		user, err := s.userRepo.GetByID(ctx, ownerID)
 		if err == nil && user != nil && user.StorageQuotaBytes > 0 {
-			_, usedBytes, _ := s.repo.GetStats(ctx, userID)
+			_, usedBytes, _ := s.repo.GetStats(ctx, &ownerID)
 			if usedBytes+size > user.StorageQuotaBytes {
-				return nil, fmt.Errorf("kapasitas penyimpanan Drive Anda telah melebihi kuota (%s). Sisa ruang tidak mencukupi untuk berkas berukuran %s", formatBytes(user.StorageQuotaBytes), formatBytes(size))
+				return nil, fmt.Errorf("kapasitas penyimpanan Drive telah melebihi kuota (%s). Sisa ruang tidak mencukupi untuk berkas berukuran %s", formatBytes(user.StorageQuotaBytes), formatBytes(size))
 			}
 		}
 	}
 
-	effectiveParentID := initialParentID
 	targetFilename := filename
 
 	// If relativePath has directory components (e.g. "MyFolder/SubFolder/file.txt")
@@ -194,7 +259,7 @@ func (s *DriveService) UploadFile(
 				if folderName == "" || folderName == "." {
 					continue
 				}
-				folder, err := s.CreateFolder(ctx, userID, effectiveParentID, folderName)
+				folder, err := s.createFolderForOwner(ctx, caller, effectiveParentID, folderName, ownerID)
 				if err != nil {
 					return nil, fmt.Errorf("gagal membuat struktur folder %s: %w", folderName, err)
 				}
@@ -219,7 +284,7 @@ func (s *DriveService) UploadFile(
 	}
 
 	itemID := uuid.New()
-	userDir := filepath.Join(s.baseDir, userID.String())
+	userDir := filepath.Join(s.baseDir, ownerID.String())
 	if err := os.MkdirAll(userDir, 0750); err != nil {
 		return nil, fmt.Errorf("gagal membuat direktori user: %w", err)
 	}
@@ -243,7 +308,7 @@ func (s *DriveService) UploadFile(
 
 	item := &model.DriveItem{
 		ID:          itemID,
-		UserID:      userID,
+		UserID:      ownerID,
 		ParentID:    effectiveParentID,
 		Name:        cleanFilename,
 		Type:        model.DriveItemTypeFile,
@@ -263,73 +328,125 @@ func (s *DriveService) UploadFile(
 	if effectiveParentID != nil {
 		parentStr = effectiveParentID.String()
 	}
-	s.LogAudit(ctx, userID, "drive_file_uploaded", item.ID.String(), map[string]interface{}{
+	s.LogAudit(ctx, caller.ID, "drive_file_uploaded", item.ID.String(), map[string]interface{}{
 		"name":       cleanFilename,
 		"size_bytes": size,
 		"mime_type":  mimeType,
 		"parent_id":  parentStr,
+		"owner_id":   ownerID.String(),
 	})
 
 	return item, nil
 }
 
-func (s *DriveService) GetItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*model.DriveItem, error) {
-	return s.repo.GetByID(ctx, id, userID)
+func (s *DriveService) GetItem(ctx context.Context, caller *model.User, id uuid.UUID) (*model.DriveItem, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if caller.Role == model.RoleUser {
+		return s.repo.GetByID(ctx, id, caller.ID)
+	}
+	return s.repo.GetByIDAny(ctx, id)
 }
 
 // DeleteItem moves item to trash quarantine (keeps files on disk for 7 days)
-func (s *DriveService) DeleteItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
-	item, _ := s.repo.GetByID(ctx, id, userID)
-	if err := s.repo.MoveToTrash(ctx, id, userID); err != nil {
+func (s *DriveService) DeleteItem(ctx context.Context, caller *model.User, id uuid.UUID) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return ErrViewerReadOnly
+	}
+
+	var item *model.DriveItem
+	var err error
+	if caller.Role == model.RoleUser {
+		item, err = s.repo.GetByID(ctx, id, caller.ID)
+	} else {
+		item, err = s.repo.GetByIDAny(ctx, id)
+	}
+	if err != nil {
 		return err
 	}
-	itemName := ""
-	itemType := "file"
-	if item != nil {
-		itemName = item.Name
-		itemType = string(item.Type)
+
+	if err := s.repo.MoveToTrash(ctx, id, item.UserID); err != nil {
+		return err
 	}
-	s.LogAudit(ctx, userID, "drive_item_trashed", id.String(), map[string]interface{}{
-		"name":            itemName,
-		"type":            itemType,
+
+	s.LogAudit(ctx, caller.ID, "drive_item_trashed", id.String(), map[string]interface{}{
+		"name":            item.Name,
+		"type":            string(item.Type),
+		"owner_id":        item.UserID.String(),
 		"quarantine_days": 7,
 	})
 	return nil
 }
 
-// ListTrash returns all items in trash quarantine for the user
-func (s *DriveService) ListTrash(ctx context.Context, userID uuid.UUID) ([]*model.DriveItem, error) {
-	return s.repo.ListTrash(ctx, userID)
+// ListTrash returns all items in trash quarantine
+func (s *DriveService) ListTrash(ctx context.Context, caller *model.User, targetUserID *uuid.UUID) ([]*model.DriveItem, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if caller.Role == model.RoleUser {
+		return s.repo.ListTrash(ctx, &caller.ID)
+	}
+	return s.repo.ListTrash(ctx, targetUserID)
 }
 
 // RestoreItem restores a trashed item and its descendants back to active drive
-func (s *DriveService) RestoreItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
-	item, _ := s.repo.GetByID(ctx, id, userID)
-	if err := s.repo.RestoreFromTrash(ctx, id, userID); err != nil {
+func (s *DriveService) RestoreItem(ctx context.Context, caller *model.User, id uuid.UUID) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return ErrViewerReadOnly
+	}
+
+	var item *model.DriveItem
+	var err error
+	if caller.Role == model.RoleUser {
+		item, err = s.repo.GetByID(ctx, id, caller.ID)
+	} else {
+		item, err = s.repo.GetByIDAny(ctx, id)
+	}
+	if err != nil {
 		return err
 	}
-	itemName := ""
-	itemType := "file"
-	if item != nil {
-		itemName = item.Name
-		itemType = string(item.Type)
+
+	if err := s.repo.RestoreFromTrash(ctx, id, item.UserID); err != nil {
+		return err
 	}
-	s.LogAudit(ctx, userID, "drive_item_restored", id.String(), map[string]interface{}{
-		"name": itemName,
-		"type": itemType,
+
+	s.LogAudit(ctx, caller.ID, "drive_item_restored", id.String(), map[string]interface{}{
+		"name":     item.Name,
+		"type":     string(item.Type),
+		"owner_id": item.UserID.String(),
 	})
 	return nil
 }
 
 // PermanentDeleteItem permanently removes item and its files from disk and database
-func (s *DriveService) PermanentDeleteItem(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
-	item, err := s.repo.GetByID(ctx, id, userID)
+func (s *DriveService) PermanentDeleteItem(ctx context.Context, caller *model.User, id uuid.UUID) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return ErrViewerReadOnly
+	}
+
+	var item *model.DriveItem
+	var err error
+	if caller.Role == model.RoleUser {
+		item, err = s.repo.GetByID(ctx, id, caller.ID)
+	} else {
+		item, err = s.repo.GetByIDAny(ctx, id)
+	}
 	if err != nil {
 		return err
 	}
 
 	if item.Type == model.DriveItemTypeFolder {
-		descendants, err := s.repo.FindDescendants(ctx, userID, id)
+		descendants, err := s.repo.FindDescendants(ctx, id)
 		if err == nil {
 			for _, desc := range descendants {
 				if desc.Type == model.DriveItemTypeFile && desc.StoragePath != "" {
@@ -341,20 +458,35 @@ func (s *DriveService) PermanentDeleteItem(ctx context.Context, userID uuid.UUID
 		_ = os.Remove(item.StoragePath)
 	}
 
-	if err := s.repo.DeletePermanent(ctx, id, userID); err != nil {
+	if err := s.repo.DeletePermanent(ctx, id, item.UserID); err != nil {
 		return err
 	}
 
-	s.LogAudit(ctx, userID, "drive_item_permanently_deleted", id.String(), map[string]interface{}{
-		"name": item.Name,
-		"type": item.Type,
+	s.LogAudit(ctx, caller.ID, "drive_item_permanently_deleted", id.String(), map[string]interface{}{
+		"name":     item.Name,
+		"type":     item.Type,
+		"owner_id": item.UserID.String(),
 	})
 	return nil
 }
 
-// EmptyTrash permanently removes all trashed items for user
-func (s *DriveService) EmptyTrash(ctx context.Context, userID uuid.UUID) error {
-	trashed, err := s.repo.ListTrash(ctx, userID)
+// EmptyTrash permanently removes all trashed items
+func (s *DriveService) EmptyTrash(ctx context.Context, caller *model.User, targetUserID *uuid.UUID) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return ErrViewerReadOnly
+	}
+
+	var effectiveUserID *uuid.UUID
+	if caller.Role == model.RoleUser {
+		effectiveUserID = &caller.ID
+	} else {
+		effectiveUserID = targetUserID
+	}
+
+	trashed, err := s.repo.ListTrash(ctx, effectiveUserID)
 	if err == nil {
 		for _, item := range trashed {
 			if item.Type == model.DriveItemTypeFile && item.StoragePath != "" {
@@ -362,10 +494,10 @@ func (s *DriveService) EmptyTrash(ctx context.Context, userID uuid.UUID) error {
 			}
 		}
 	}
-	if err := s.repo.EmptyTrash(ctx, userID); err != nil {
+	if err := s.repo.EmptyTrash(ctx, effectiveUserID); err != nil {
 		return err
 	}
-	s.LogAudit(ctx, userID, "drive_trash_emptied", "", map[string]interface{}{
+	s.LogAudit(ctx, caller.ID, "drive_trash_emptied", "", map[string]interface{}{
 		"items_count": len(trashed),
 	})
 	return nil
@@ -390,31 +522,55 @@ func (s *DriveService) PurgeExpiredTrash(ctx context.Context, olderThan time.Tim
 	return err
 }
 
-func (s *DriveService) RenameItem(ctx context.Context, userID uuid.UUID, id uuid.UUID, newName string) error {
+func (s *DriveService) RenameItem(ctx context.Context, caller *model.User, id uuid.UUID, newName string) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return ErrViewerReadOnly
+	}
+
 	cleanName := strings.TrimSpace(newName)
 	if cleanName == "" || strings.Contains(cleanName, "/") || strings.Contains(cleanName, "\\") {
 		return ErrInvalidItemName
 	}
-	item, _ := s.repo.GetByID(ctx, id, userID)
-	if err := s.repo.Rename(ctx, id, userID, cleanName); err != nil {
+
+	var item *model.DriveItem
+	var err error
+	if caller.Role == model.RoleUser {
+		item, err = s.repo.GetByID(ctx, id, caller.ID)
+	} else {
+		item, err = s.repo.GetByIDAny(ctx, id)
+	}
+	if err != nil {
 		return err
 	}
-	oldName := ""
-	itemType := "file"
-	if item != nil {
-		oldName = item.Name
-		itemType = string(item.Type)
+
+	if err := s.repo.Rename(ctx, id, item.UserID, cleanName); err != nil {
+		return err
 	}
-	s.LogAudit(ctx, userID, "drive_item_renamed", id.String(), map[string]interface{}{
-		"old_name": oldName,
+
+	s.LogAudit(ctx, caller.ID, "drive_item_renamed", id.String(), map[string]interface{}{
+		"old_name": item.Name,
 		"new_name": cleanName,
-		"type":     itemType,
+		"type":     string(item.Type),
+		"owner_id": item.UserID.String(),
 	})
 	return nil
 }
 
-func (s *DriveService) ZipFolder(ctx context.Context, userID uuid.UUID, folderID uuid.UUID, w http.ResponseWriter) error {
-	folder, err := s.repo.GetByID(ctx, folderID, userID)
+func (s *DriveService) ZipFolder(ctx context.Context, caller *model.User, folderID uuid.UUID, w http.ResponseWriter) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+
+	var folder *model.DriveItem
+	var err error
+	if caller.Role == model.RoleUser {
+		folder, err = s.repo.GetByID(ctx, folderID, caller.ID)
+	} else {
+		folder, err = s.repo.GetByIDAny(ctx, folderID)
+	}
 	if err != nil {
 		return err
 	}
@@ -422,7 +578,7 @@ func (s *DriveService) ZipFolder(ctx context.Context, userID uuid.UUID, folderID
 		return errors.New("item bukan folder")
 	}
 
-	descendants, err := s.repo.FindDescendants(ctx, userID, folderID)
+	descendants, err := s.repo.FindDescendants(ctx, folderID)
 	if err != nil {
 		return err
 	}
@@ -484,8 +640,21 @@ func (s *DriveService) ZipFolder(ctx context.Context, userID uuid.UUID, folderID
 	return nil
 }
 
-func (s *DriveService) MoveItem(ctx context.Context, userID uuid.UUID, id uuid.UUID, targetParentID *uuid.UUID) error {
-	item, err := s.repo.GetByID(ctx, id, userID)
+func (s *DriveService) MoveItem(ctx context.Context, caller *model.User, id uuid.UUID, targetParentID *uuid.UUID) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return ErrViewerReadOnly
+	}
+
+	var item *model.DriveItem
+	var err error
+	if caller.Role == model.RoleUser {
+		item, err = s.repo.GetByID(ctx, id, caller.ID)
+	} else {
+		item, err = s.repo.GetByIDAny(ctx, id)
+	}
 	if err != nil {
 		return err
 	}
@@ -495,7 +664,12 @@ func (s *DriveService) MoveItem(ctx context.Context, userID uuid.UUID, id uuid.U
 			return errors.New("tidak dapat memindahkan item ke dalam dirinya sendiri")
 		}
 
-		target, err := s.repo.GetByID(ctx, *targetParentID, userID)
+		var target *model.DriveItem
+		if caller.Role == model.RoleUser {
+			target, err = s.repo.GetByID(ctx, *targetParentID, caller.ID)
+		} else {
+			target, err = s.repo.GetByIDAny(ctx, *targetParentID)
+		}
 		if err != nil {
 			return ErrInvalidDestination
 		}
@@ -504,7 +678,7 @@ func (s *DriveService) MoveItem(ctx context.Context, userID uuid.UUID, id uuid.U
 		}
 
 		if item.Type == model.DriveItemTypeFolder {
-			isDescendant, err := s.repo.IsDescendant(ctx, userID, id, *targetParentID)
+			isDescendant, err := s.repo.IsDescendant(ctx, id, *targetParentID)
 			if err != nil {
 				return err
 			}
@@ -514,7 +688,7 @@ func (s *DriveService) MoveItem(ctx context.Context, userID uuid.UUID, id uuid.U
 		}
 	}
 
-	if err := s.repo.Move(ctx, id, userID, targetParentID); err != nil {
+	if err := s.repo.Move(ctx, id, item.UserID, targetParentID); err != nil {
 		return err
 	}
 
@@ -522,30 +696,58 @@ func (s *DriveService) MoveItem(ctx context.Context, userID uuid.UUID, id uuid.U
 	if targetParentID != nil {
 		targetStr = targetParentID.String()
 	}
-	s.LogAudit(ctx, userID, "drive_item_moved", id.String(), map[string]interface{}{
+	s.LogAudit(ctx, caller.ID, "drive_item_moved", id.String(), map[string]interface{}{
 		"name":             item.Name,
 		"type":             item.Type,
 		"target_parent_id": targetStr,
+		"owner_id":         item.UserID.String(),
 	})
 	return nil
 }
 
-func (s *DriveService) ListAllFolders(ctx context.Context, userID uuid.UUID) ([]*model.DriveFolderTreeItem, error) {
-	return s.repo.ListAllFolders(ctx, userID)
+func (s *DriveService) ListAllFolders(ctx context.Context, caller *model.User, targetUserID *uuid.UUID) ([]*model.DriveFolderTreeItem, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if caller.Role == model.RoleUser {
+		return s.repo.ListAllFolders(ctx, &caller.ID)
+	}
+	return s.repo.ListAllFolders(ctx, targetUserID)
 }
 
-func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, req *model.InitUploadRequest) (*model.InitUploadResponse, error) {
+func (s *DriveService) InitUploadSession(ctx context.Context, caller *model.User, req *model.InitUploadRequest) (*model.InitUploadResponse, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return nil, ErrViewerReadOnly
+	}
+
 	if req.TotalBytes <= 0 {
 		return nil, errors.New("ukuran berkas harus lebih besar dari 0")
 	}
 
-	// Check user storage quota (e.g. 15GB for role user)
+	ownerID := caller.ID
+	if req.ParentID != nil {
+		var parent *model.DriveItem
+		var err error
+		if caller.Role == model.RoleUser {
+			parent, err = s.repo.GetByID(ctx, *req.ParentID, caller.ID)
+		} else {
+			parent, err = s.repo.GetByIDAny(ctx, *req.ParentID)
+		}
+		if err == nil && parent != nil {
+			ownerID = parent.UserID
+		}
+	}
+
+	// Check storage quota
 	if s.userRepo != nil && req.TotalBytes > 0 {
-		user, err := s.userRepo.GetByID(ctx, userID)
+		user, err := s.userRepo.GetByID(ctx, ownerID)
 		if err == nil && user != nil && user.StorageQuotaBytes > 0 {
-			_, usedBytes, _ := s.repo.GetStats(ctx, userID)
+			_, usedBytes, _ := s.repo.GetStats(ctx, &ownerID)
 			if usedBytes+req.TotalBytes > user.StorageQuotaBytes {
-				return nil, fmt.Errorf("kapasitas penyimpanan Drive Anda telah melebihi kuota (%s). Sisa ruang tidak mencukupi untuk berkas berukuran %s", formatBytes(user.StorageQuotaBytes), formatBytes(req.TotalBytes))
+				return nil, fmt.Errorf("kapasitas penyimpanan Drive telah melebihi kuota (%s). Sisa ruang tidak mencukupi untuk berkas berukuran %s", formatBytes(user.StorageQuotaBytes), formatBytes(req.TotalBytes))
 			}
 		}
 	}
@@ -569,7 +771,7 @@ func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, 
 	}
 
 	uploadID := uuid.New()
-	tmpDir := filepath.Join(s.baseDir, "tmp", userID.String())
+	tmpDir := filepath.Join(s.baseDir, "tmp", caller.ID.String())
 	if err := os.MkdirAll(tmpDir, 0750); err != nil {
 		return nil, fmt.Errorf("gagal membuat direktori temporer: %w", err)
 	}
@@ -583,7 +785,7 @@ func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, 
 
 	session := &model.DriveUploadSession{
 		ID:             uploadID,
-		UserID:         userID,
+		UserID:         caller.ID,
 		ParentID:       req.ParentID,
 		Filename:       cleanFilename,
 		RelativePath:   req.RelativePath,
@@ -615,8 +817,15 @@ func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, 
 	}, nil
 }
 
-func (s *DriveService) SaveChunk(ctx context.Context, userID uuid.UUID, uploadID uuid.UUID, chunkIndex int, r io.Reader) (int64, error) {
-	session, err := s.repo.GetUploadSession(ctx, uploadID, userID)
+func (s *DriveService) SaveChunk(ctx context.Context, caller *model.User, uploadID uuid.UUID, chunkIndex int, r io.Reader) (int64, error) {
+	if caller == nil {
+		return 0, ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return 0, ErrViewerReadOnly
+	}
+
+	session, err := s.repo.GetUploadSession(ctx, uploadID, caller.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -643,8 +852,7 @@ func (s *DriveService) SaveChunk(ctx context.Context, userID uuid.UUID, uploadID
 		return 0, fmt.Errorf("gagal menulis chunk berkas: %w", err)
 	}
 
-	// Atomically record chunk progress in database (thread-safe for concurrent chunks)
-	newUploadedBytes, err := s.repo.RecordChunkSuccess(ctx, uploadID, userID, chunkIndex, written)
+	newUploadedBytes, err := s.repo.RecordChunkSuccess(ctx, uploadID, caller.ID, chunkIndex, written)
 	if err != nil {
 		return 0, err
 	}
@@ -652,8 +860,15 @@ func (s *DriveService) SaveChunk(ctx context.Context, userID uuid.UUID, uploadID
 	return newUploadedBytes, nil
 }
 
-func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UUID, uploadID uuid.UUID) (*model.DriveItem, error) {
-	session, err := s.repo.GetUploadSession(ctx, uploadID, userID)
+func (s *DriveService) CompleteUploadSession(ctx context.Context, caller *model.User, uploadID uuid.UUID) (*model.DriveItem, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return nil, ErrViewerReadOnly
+	}
+
+	session, err := s.repo.GetUploadSession(ctx, uploadID, caller.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -671,6 +886,20 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UU
 	}
 
 	effectiveParentID := session.ParentID
+	ownerID := caller.ID
+	if session.ParentID != nil {
+		var parent *model.DriveItem
+		var err error
+		if caller.Role == model.RoleUser {
+			parent, err = s.repo.GetByID(ctx, *session.ParentID, caller.ID)
+		} else {
+			parent, err = s.repo.GetByIDAny(ctx, *session.ParentID)
+		}
+		if err == nil && parent != nil {
+			ownerID = parent.UserID
+		}
+	}
+
 	targetFilename := session.Filename
 
 	cleanedRel := filepath.ToSlash(filepath.Clean(session.RelativePath))
@@ -683,7 +912,7 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UU
 				if folderName == "" || folderName == "." {
 					continue
 				}
-				folder, err := s.CreateFolder(ctx, userID, effectiveParentID, folderName)
+				folder, err := s.createFolderForOwner(ctx, caller, effectiveParentID, folderName, ownerID)
 				if err != nil {
 					return nil, fmt.Errorf("gagal membuat struktur folder %s: %w", folderName, err)
 				}
@@ -709,7 +938,7 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UU
 	}
 
 	itemID := uuid.New()
-	userDir := filepath.Join(s.baseDir, userID.String())
+	userDir := filepath.Join(s.baseDir, ownerID.String())
 	_ = os.MkdirAll(userDir, 0750)
 
 	storagePath := filepath.Join(userDir, itemID.String())
@@ -736,7 +965,7 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UU
 
 	item := &model.DriveItem{
 		ID:          itemID,
-		UserID:      userID,
+		UserID:      ownerID,
 		ParentID:    effectiveParentID,
 		Name:        cleanFilename,
 		Type:        model.DriveItemTypeFile,
@@ -752,32 +981,41 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, userID uuid.UU
 		return nil, fmt.Errorf("gagal mencatat berkas di basis data: %w", err)
 	}
 
-	_ = s.repo.SetUploadSessionStatus(ctx, uploadID, userID, model.DriveUploadSessionCompleted)
+	_ = s.repo.SetUploadSessionStatus(ctx, uploadID, caller.ID, model.DriveUploadSessionCompleted)
 
 	parentStr := "root"
 	if effectiveParentID != nil {
 		parentStr = effectiveParentID.String()
 	}
-	s.LogAudit(ctx, userID, "drive_file_uploaded", item.ID.String(), map[string]interface{}{
+	s.LogAudit(ctx, caller.ID, "drive_file_uploaded", item.ID.String(), map[string]interface{}{
 		"name":       cleanFilename,
 		"size_bytes": stat.Size(),
 		"mime_type":  mimeType,
 		"parent_id":  parentStr,
 		"method":     "chunked_resumable_upload",
+		"owner_id":   ownerID.String(),
 	})
 
 	return item, nil
 }
 
-func (s *DriveService) GetActiveUploadSessions(ctx context.Context, userID uuid.UUID) ([]*model.DriveUploadSession, error) {
-	return s.repo.ListActiveUploadSessions(ctx, userID)
+func (s *DriveService) GetActiveUploadSessions(ctx context.Context, caller *model.User) ([]*model.DriveUploadSession, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	return s.repo.ListActiveUploadSessions(ctx, caller.ID)
 }
 
-func (s *DriveService) AbortUploadSession(ctx context.Context, userID uuid.UUID, uploadID uuid.UUID) error {
-	session, err := s.repo.GetUploadSession(ctx, uploadID, userID)
+func (s *DriveService) AbortUploadSession(ctx context.Context, caller *model.User, uploadID uuid.UUID) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if caller.Role == model.RoleViewer {
+		return ErrViewerReadOnly
+	}
+	session, err := s.repo.GetUploadSession(ctx, uploadID, caller.ID)
 	if err == nil && session.TempPath != "" {
 		_ = os.Remove(session.TempPath)
 	}
-	return s.repo.SetUploadSessionStatus(ctx, uploadID, userID, model.DriveUploadSessionAborted)
+	return s.repo.SetUploadSessionStatus(ctx, uploadID, caller.ID, model.DriveUploadSessionAborted)
 }
-

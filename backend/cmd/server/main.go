@@ -173,8 +173,8 @@ func main() {
 	// Applications & API keys routes
 	r.Route("/api/v1/apps", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
-		r.Get("/", appHandler.HandleList)
-		r.Get("/{id}", appHandler.HandleGet)
+		r.With(handler.RequireAdminOrViewer).Get("/", appHandler.HandleList)
+		r.With(handler.RequireAdminOrViewer).Get("/{id}", appHandler.HandleGet)
 
 		r.Group(func(r chi.Router) {
 			r.Use(handler.RequireAdmin)
@@ -186,27 +186,31 @@ func main() {
 		})
 	})
 
-	// Backups routes (Session authenticated; team role 'user' has view-only access)
+	// Backups routes (Session authenticated; team role 'user' has view-only access, 'viewer' can view and download)
 	r.Route("/api/v1/backups", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
 		r.Get("/", backupHandler.HandleList)
 		r.Get("/{id}", backupHandler.HandleGet)
+		r.With(handler.RequireAdminOrViewer).Post("/{id}/download-link", backupHandler.HandleCreateDownloadLink)
 
 		r.Group(func(r chi.Router) {
 			r.Use(handler.RequireAdmin)
-			r.Post("/{id}/download-link", backupHandler.HandleCreateDownloadLink)
 			r.Delete("/{id}", backupHandler.HandleDelete) // Manual delete (requires 2FA and Admin)
 		})
 	})
 
-	// Team User management routes (Admin only)
+	// Team User management routes (Viewer can list, Admin can create/modify/delete)
 	r.Route("/api/v1/users", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
-		r.Use(handler.RequireAdmin)
-		r.Get("/", authHandler.HandleListUsers)
-		r.Post("/", authHandler.HandleCreateUser)
-		r.Delete("/{id}", authHandler.HandleDeleteUser)
-		r.Put("/{id}/password", authHandler.HandleResetUserPassword)
+		r.With(handler.RequireAdminOrViewer).Get("/", authHandler.HandleListUsers)
+
+		r.Group(func(r chi.Router) {
+			r.Use(handler.RequireAdmin)
+			r.Post("/", authHandler.HandleCreateUser)
+			r.Delete("/{id}", authHandler.HandleDeleteUser)
+			r.Put("/{id}/password", authHandler.HandleResetUserPassword)
+			r.Put("/{id}/quota", authHandler.HandleUpdateQuota)
+		})
 	})
 
 	// Drive routes (Google Drive-like personal storage, Session authenticated)
@@ -239,24 +243,26 @@ func main() {
 
 	r.Route("/api/v1/audit", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
-		r.Use(handler.RequireAdmin)
+		r.Use(handler.RequireAdminOrViewer)
 		r.Get("/", statsHandler.HandleGetAudit)
 	})
 
-	// Retention manual trigger / dry-run & history (Admin only)
+	// Retention manual trigger / dry-run & history (Admin only for trigger, Viewer can see runs)
 	r.Route("/api/v1/retention", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
-		r.Use(handler.RequireAdmin)
-		r.Post("/trigger", func(w http.ResponseWriter, r *http.Request) {
-			isDryRun := r.URL.Query().Get("dry_run") == "true"
-			run, err := retentionMgr.Run(r.Context(), time.Now(), isDryRun)
-			if err != nil {
-				handler.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-				return
-			}
-			handler.WriteJSON(w, http.StatusOK, run)
+		r.Group(func(r chi.Router) {
+			r.Use(handler.RequireAdmin)
+			r.Post("/trigger", func(w http.ResponseWriter, r *http.Request) {
+				isDryRun := r.URL.Query().Get("dry_run") == "true"
+				run, err := retentionMgr.Run(r.Context(), time.Now(), isDryRun)
+				if err != nil {
+					handler.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				handler.WriteJSON(w, http.StatusOK, run)
+			})
 		})
-		r.Get("/runs", func(w http.ResponseWriter, r *http.Request) {
+		r.With(handler.RequireAdminOrViewer).Get("/runs", func(w http.ResponseWriter, r *http.Request) {
 			rows, err := db.Pool.Query(r.Context(), `
 				SELECT id, triggered_at, completed_at, items_quarantined, items_deleted, bytes_freed, is_dry_run, status, log_details
 				FROM retention_runs

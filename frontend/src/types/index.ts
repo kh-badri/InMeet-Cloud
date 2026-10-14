@@ -99,6 +99,7 @@ export type DriveItemType = 'file' | 'folder';
 export interface DriveItem {
   id: string;
   user_id: string;
+  owner_email?: string;
   parent_id: string | null;
   name: string;
   type: DriveItemType;

@@ -36,6 +36,10 @@ type ResetPasswordRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
+type UpdateQuotaRequest struct {
+	StorageQuotaBytes int64 `json:"storage_quota_bytes"`
+}
+
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -344,6 +348,34 @@ func (h *AuthHandler) HandleResetUserPassword(w http.ResponseWriter, r *http.Req
 	}
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "password anggota tim berhasil direset"})
+}
+
+func (h *AuthHandler) HandleUpdateQuota(w http.ResponseWriter, r *http.Request) {
+	admin := GetCurrentUser(r.Context())
+	if admin == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	targetIDStr := chi.URLParam(r, "id")
+	targetID, err := uuid.Parse(targetIDStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	var req UpdateQuotaRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.authService.UpdateTeamUserQuota(r.Context(), admin.ID, targetID, req.StorageQuotaBytes); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "kuota penyimpanan berhasil diperbarui"})
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data interface{}) {

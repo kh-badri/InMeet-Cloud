@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest, formatBytes } from '../lib/api';
 import { StatsSummary } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { 
   Database, CheckCircle2, AlertTriangle, ArrowUpRight, 
   ShieldCheck, Server, Plus, BookOpen, Activity, Lock,
@@ -13,6 +14,11 @@ interface DashboardPageProps {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isViewer = user?.role === 'viewer';
+  const isUser = user?.role === 'user';
+
   const { data: stats, isLoading, error } = useQuery<StatsSummary>({
     queryKey: ['stats'],
     queryFn: () => apiRequest<StatsSummary>('/api/v1/stats'),
@@ -88,12 +94,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           >
             <HardDrive className="h-3.5 w-3.5 text-white" /> Buka Drive
           </button>
-          <button
-            onClick={() => onNavigate('apps')}
-            className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F0F4FC] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" /> Tambah Aplikasi
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => onNavigate('apps')}
+              className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F0F4FC] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" /> Tambah Aplikasi
+            </button>
+          )}
+          {isViewer && (
+            <button
+              onClick={() => onNavigate('apps')}
+              className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F0F4FC] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+            >
+              <Server className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" /> Daftar Aplikasi
+            </button>
+          )}
+          {isUser && (
+            <button
+              onClick={() => onNavigate('backups')}
+              className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F0F4FC] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+            >
+              <Database className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500]" /> Daftar Backup
+            </button>
+          )}
           <button
             onClick={() => onNavigate('docs')}
             className="flex items-center gap-1.5 rounded-xl border border-[#92B4EC] bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F0F4FC] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
