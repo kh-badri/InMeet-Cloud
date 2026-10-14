@@ -47,8 +47,8 @@ func (r *UserRepository) EnsureAdminUser(ctx context.Context, email, password st
 
 	id := uuid.New()
 	_, err = r.pool.Exec(ctx, `
-		INSERT INTO users (id, email, password_hash, role, storage_quota_bytes, totp_enabled, recovery_codes)
-		VALUES ($1, $2, $3, $4, 0, false, '[]'::jsonb)
+		INSERT INTO users (id, email, password_hash, role, can_view, can_edit, can_delete, storage_quota_bytes, totp_enabled, recovery_codes)
+		VALUES ($1, $2, $3, $4, true, true, true, 0, false, '[]'::jsonb)
 	`, id, email, hash, model.RoleAdmin)
 	if err != nil {
 		return fmt.Errorf("failed to create initial admin user: %w", err)
@@ -60,7 +60,7 @@ func (r *UserRepository) EnsureAdminUser(ctx context.Context, email, password st
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT u.id, u.email, u.password_hash, u.role, u.storage_quota_bytes, u.totp_secret, u.totp_enabled, u.recovery_codes, u.created_at, u.updated_at,
+		SELECT u.id, u.email, u.password_hash, u.role, u.can_view, u.can_edit, u.can_delete, u.storage_quota_bytes, u.totp_secret, u.totp_enabled, u.recovery_codes, u.created_at, u.updated_at,
 		       COALESCE((
 		         SELECT SUM(size_bytes)
 		         FROM drive_items
@@ -72,7 +72,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 
 	var u model.User
 	var rawCodes []byte
-	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.StorageQuotaBytes, &u.TOTPSecret, &u.TOTPEnabled, &rawCodes, &u.CreatedAt, &u.UpdatedAt, &u.StorageUsedBytes)
+	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CanView, &u.CanEdit, &u.CanDelete, &u.StorageQuotaBytes, &u.TOTPSecret, &u.TOTPEnabled, &rawCodes, &u.CreatedAt, &u.UpdatedAt, &u.StorageUsedBytes)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -88,7 +88,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT u.id, u.email, u.password_hash, u.role, u.storage_quota_bytes, u.totp_secret, u.totp_enabled, u.recovery_codes, u.created_at, u.updated_at,
+		SELECT u.id, u.email, u.password_hash, u.role, u.can_view, u.can_edit, u.can_delete, u.storage_quota_bytes, u.totp_secret, u.totp_enabled, u.recovery_codes, u.created_at, u.updated_at,
 		       COALESCE((
 		         SELECT SUM(size_bytes)
 		         FROM drive_items
@@ -103,7 +103,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 
 	var u model.User
 	var rawCodes []byte
-	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.StorageQuotaBytes, &u.TOTPSecret, &u.TOTPEnabled, &rawCodes, &u.CreatedAt, &u.UpdatedAt, &u.StorageUsedBytes)
+	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CanView, &u.CanEdit, &u.CanDelete, &u.StorageQuotaBytes, &u.TOTPSecret, &u.TOTPEnabled, &rawCodes, &u.CreatedAt, &u.UpdatedAt, &u.StorageUsedBytes)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -117,16 +117,16 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	return &u, nil
 }
 
-func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash string, role model.Role, quotaBytes int64) (*model.User, error) {
+func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash string, role model.Role, canView, canEdit, canDelete bool, quotaBytes int64) (*model.User, error) {
 	id := uuid.New()
 	now := time.Now()
 	if quotaBytes <= 0 && role == model.RoleUser {
 		quotaBytes = 16106127360 // 15 GB default
 	}
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO users (id, email, password_hash, role, storage_quota_bytes, totp_enabled, recovery_codes, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, false, '[]'::jsonb, $6, $6)
-	`, id, email, passwordHash, role, quotaBytes, now)
+		INSERT INTO users (id, email, password_hash, role, can_view, can_edit, can_delete, storage_quota_bytes, totp_enabled, recovery_codes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, '[]'::jsonb, $9, $9)
+	`, id, email, passwordHash, role, canView, canEdit, canDelete, quotaBytes, now)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +134,9 @@ func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash str
 		ID:                id,
 		Email:             email,
 		Role:              role,
+		CanView:           canView,
+		CanEdit:           canEdit,
+		CanDelete:         canDelete,
 		StorageQuotaBytes: quotaBytes,
 		StorageUsedBytes:  0,
 		CreatedAt:         now,
@@ -143,7 +146,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash str
 
 func (r *UserRepository) ListUsers(ctx context.Context) ([]*model.User, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT u.id, u.email, u.role, u.storage_quota_bytes, u.totp_enabled, u.created_at, u.updated_at,
+		SELECT u.id, u.email, u.role, u.can_view, u.can_edit, u.can_delete, u.storage_quota_bytes, u.totp_enabled, u.created_at, u.updated_at,
 		       COALESCE((
 		         SELECT SUM(size_bytes)
 		         FROM drive_items
@@ -160,7 +163,7 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]*model.User, error) {
 	users := make([]*model.User, 0)
 	for rows.Next() {
 		var u model.User
-		err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.StorageQuotaBytes, &u.TOTPEnabled, &u.CreatedAt, &u.UpdatedAt, &u.StorageUsedBytes)
+		err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.CanView, &u.CanEdit, &u.CanDelete, &u.StorageQuotaBytes, &u.TOTPEnabled, &u.CreatedAt, &u.UpdatedAt, &u.StorageUsedBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -171,13 +174,13 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]*model.User, error) {
 
 func (r *UserRepository) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	res, err := r.pool.Exec(ctx, `
-		DELETE FROM users WHERE id = $1 AND role != 'admin'
+		DELETE FROM users WHERE id = $1 AND email != 'admin@inmeet'
 	`, id)
 	if err != nil {
 		return err
 	}
 	if res.RowsAffected() == 0 {
-		return errors.New("pengguna tidak ditemukan atau tidak dapat menghapus akun administrator")
+		return errors.New("pengguna tidak ditemukan atau tidak dapat menghapus akun administrator utama")
 	}
 	return nil
 }
@@ -186,6 +189,21 @@ func (r *UserRepository) UpdateUserQuota(ctx context.Context, id uuid.UUID, quot
 	res, err := r.pool.Exec(ctx, `
 		UPDATE users SET storage_quota_bytes = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 	`, quotaBytes, id)
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateUserPermissionsAndQuota(ctx context.Context, id uuid.UUID, canView, canEdit, canDelete bool, quotaBytes int64) error {
+	res, err := r.pool.Exec(ctx, `
+		UPDATE users 
+		SET can_view = $1, can_edit = $2, can_delete = $3, storage_quota_bytes = $4, updated_at = CURRENT_TIMESTAMP 
+		WHERE id = $5
+	`, canView, canEdit, canDelete, quotaBytes, id)
 	if err != nil {
 		return err
 	}

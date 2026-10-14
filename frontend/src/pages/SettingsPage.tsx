@@ -16,8 +16,10 @@ export const SettingsPage: React.FC = () => {
   const { user, refreshUser } = useAuth();
   const queryClient = useQueryClient();
   const isAdmin = user?.role === 'admin';
-  const isViewer = user?.role === 'viewer';
-  const isAdminOrViewer = isAdmin || isViewer;
+  const isReadOnlyAdmin = isAdmin && (!user?.can_edit && !user?.can_delete);
+  const canAdminEdit = isAdmin && user?.can_edit !== false;
+  const canAdminDelete = isAdmin && user?.can_delete !== false;
+  const isAdminOrViewer = isAdmin;
 
   // Retention query & mutations
   const { data: apps } = useQuery<Application[]>({
@@ -88,15 +90,21 @@ export const SettingsPage: React.FC = () => {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [addEmail, setAddEmail] = useState('');
   const [addPassword, setAddPassword] = useState('');
-  const [addRole, setAddRole] = useState<'user' | 'admin' | 'viewer'>('user');
+  const [addRole, setAddRole] = useState<'user' | 'admin'>('user');
+  const [addCanView, setAddCanView] = useState(true);
+  const [addCanEdit, setAddCanEdit] = useState(true);
+  const [addCanDelete, setAddCanDelete] = useState(true);
   const [addQuotaGB, setAddQuotaGB] = useState(15);
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   const [addUserError, setAddUserError] = useState<string | null>(null);
 
-  const [quotaTarget, setQuotaTarget] = useState<UserModel | null>(null);
+  const [permissionTarget, setPermissionTarget] = useState<UserModel | null>(null);
+  const [editCanView, setEditCanView] = useState(true);
+  const [editCanEdit, setEditCanEdit] = useState(true);
+  const [editCanDelete, setEditCanDelete] = useState(true);
   const [editQuotaGB, setEditQuotaGB] = useState(15);
-  const [isUpdatingQuota, setIsUpdatingQuota] = useState(false);
-  const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [isUpdatingPermissions, setIsUpdatingPermissions] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   const [resetTarget, setResetTarget] = useState<UserModel | null>(null);
   const [resetNewPassword, setResetNewPassword] = useState('');
@@ -108,6 +116,16 @@ export const SettingsPage: React.FC = () => {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [userActionMsg, setUserActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const openEditPermissions = (u: UserModel) => {
+    setPermissionError(null);
+    setEditCanView(u.can_view !== false);
+    setEditCanEdit(u.can_edit !== false);
+    setEditCanDelete(u.can_delete !== false);
+    const gb = Math.round((u.storage_quota_bytes || 16106127360) / (1024 * 1024 * 1024));
+    setEditQuotaGB(gb > 0 ? gb : 15);
+    setPermissionTarget(u);
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,6 +148,9 @@ export const SettingsPage: React.FC = () => {
           email: addEmail,
           password: addPassword,
           role: addRole,
+          can_view: addCanView,
+          can_edit: addCanEdit,
+          can_delete: addCanDelete,
           storage_quota_bytes: quotaBytes,
         }),
       });
@@ -137,15 +158,16 @@ export const SettingsPage: React.FC = () => {
       setAddEmail('');
       setAddPassword('');
       setAddRole('user');
+      setAddCanView(true);
+      setAddCanEdit(true);
+      setAddCanDelete(true);
       setAddQuotaGB(15);
       refetchUsers();
       setUserActionMsg({
         type: 'success',
-        text: `Pengguna "${addEmail}" berhasil ditambahkan dengan peran ${
+        text: `Pengguna "${addEmail}" berhasil ditambahkan sebagai ${
           addRole === 'admin'
-            ? 'Administrator (Akses Penuh)'
-            : addRole === 'viewer'
-            ? 'Administrator (Hanya Lihat)'
+            ? (!addCanEdit && !addCanDelete ? 'Administrator (Hanya-Lihat)' : 'Administrator')
             : `Anggota Tim (${addQuotaGB} GB)`
         }!`,
       });
@@ -157,33 +179,38 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleUpdateQuota = async (e: React.FormEvent) => {
+  const handleUpdatePermissions = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quotaTarget) return;
-    setQuotaError(null);
-    if (editQuotaGB <= 0) {
-      setQuotaError('Kuota harus lebih besar dari 0 GB');
+    if (!permissionTarget) return;
+    setPermissionError(null);
+    if (permissionTarget.role === 'user' && editQuotaGB <= 0) {
+      setPermissionError('Kuota harus lebih besar dari 0 GB');
       return;
     }
 
-    setIsUpdatingQuota(true);
+    setIsUpdatingPermissions(true);
     try {
-      const quotaBytes = editQuotaGB * 1024 * 1024 * 1024;
-      await apiRequest(`/api/v1/users/${quotaTarget.id}/quota`, {
+      const quotaBytes = permissionTarget.role === 'user' ? editQuotaGB * 1024 * 1024 * 1024 : 0;
+      await apiRequest(`/api/v1/users/${permissionTarget.id}/permissions`, {
         method: 'PUT',
-        body: JSON.stringify({ storage_quota_bytes: quotaBytes }),
+        body: JSON.stringify({
+          can_view: editCanView,
+          can_edit: editCanEdit,
+          can_delete: editCanDelete,
+          storage_quota_bytes: quotaBytes,
+        }),
       });
-      setQuotaTarget(null);
+      setPermissionTarget(null);
       refetchUsers();
       setUserActionMsg({
         type: 'success',
-        text: `Kuota penyimpanan untuk ${quotaTarget.email} berhasil diubah menjadi ${editQuotaGB} GB!`,
+        text: `Izin dan kuota untuk "${permissionTarget.email}" berhasil diperbarui!`,
       });
       setTimeout(() => setUserActionMsg(null), 4000);
     } catch (err: any) {
-      setQuotaError(err.message || 'Gagal mengubah kuota');
+      setPermissionError(err.message || 'Gagal memperbarui izin pengguna');
     } finally {
-      setIsUpdatingQuota(false);
+      setIsUpdatingPermissions(false);
     }
   };
 
@@ -684,13 +711,16 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
 
-            {isAdmin && (
+            {canAdminEdit && (
               <button
                 onClick={() => {
                   setAddUserError(null);
                   setAddEmail('');
                   setAddPassword('');
                   setAddRole('user');
+                  setAddCanView(true);
+                  setAddCanEdit(true);
+                  setAddCanDelete(true);
                   setAddQuotaGB(15);
                   setIsAddUserOpen(true);
                 }}
@@ -702,10 +732,10 @@ export const SettingsPage: React.FC = () => {
             )}
           </div>
 
-          {isViewer && (
+          {isReadOnlyAdmin && (
             <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300 flex items-center gap-2">
               <Eye className="h-4 w-4 shrink-0" />
-              <span>Mode Administrator Hanya-Lihat: Anda dapat melihat seluruh daftar anggota tim dan pemakaian kuota, namun tidak memiliki izin menambah pengguna, mengubah kuota, atau menghapus akun.</span>
+              <span>Mode Administrator Hanya-Lihat: Anda dapat melihat seluruh daftar anggota tim dan pemakaian kuota, namun tidak memiliki izin menambah pengguna, mengubah izin/kuota, atau menghapus akun.</span>
             </div>
           )}
 
@@ -729,8 +759,8 @@ export const SettingsPage: React.FC = () => {
                 <tr>
                   <th className="px-3.5 py-2.5 font-bold">Email Login</th>
                   <th className="px-3 py-2.5 font-bold">Peran (Role)</th>
+                  <th className="px-3 py-2.5 font-bold">Kotak Izin Akses</th>
                   <th className="px-3 py-2.5 font-bold">Kuota InMeet Drive</th>
-                  <th className="px-3 py-2.5 font-bold">Akses Backup</th>
                   <th className="px-3 py-2.5 font-bold">Tanggal Dibuat</th>
                   <th className="px-3.5 py-2.5 font-bold text-right">Aksi</th>
                 </tr>
@@ -755,6 +785,7 @@ export const SettingsPage: React.FC = () => {
                     const quotaBytes = u.storage_quota_bytes || (isUserRole ? 16106127360 : 0);
                     const usedBytes = u.storage_used_bytes || 0;
                     const percent = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0;
+                    const isReadOnlyAdminUser = u.role === 'admin' && (u.can_view !== false && !u.can_edit && !u.can_delete);
 
                     return (
                       <tr key={u.id} className="hover:bg-[#92B4EC]/5 dark:hover:bg-[#1E3E62]/20">
@@ -766,23 +797,53 @@ export const SettingsPage: React.FC = () => {
                                 Anda
                               </span>
                             )}
+                            {u.email === 'admin@inmeet' && (
+                              <span className="rounded bg-[#FF6701]/10 text-[#FF6701] dark:bg-[#FF6500]/20 dark:text-[#FF6500] px-1.5 py-0.2 text-[9px] font-bold">
+                                Utama
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-3">
                           <span
                             className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                               u.role === 'admin'
-                                ? 'bg-[#FF6701]/15 text-[#FF6701] dark:bg-[#FF6500]/20 dark:text-[#FF6500]'
-                                : u.role === 'viewer'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
-                                : 'bg-[#92B4EC]/30 text-slate-700 dark:bg-[#1E3E62] dark:text-[#FEA82F]'
+                                ? isReadOnlyAdminUser
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
+                                  : 'bg-[#FF6701]/15 text-[#FF6701] dark:bg-[#FF6500]/20 dark:text-[#FF6500]'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
                             }`}
                           >
-                            {u.role === 'admin' ? 'Administrator (Penuh)' : u.role === 'viewer' ? 'Admin (Hanya Lihat)' : 'Anggota Tim'}
+                            {u.role === 'admin' ? (isReadOnlyAdminUser ? 'Admin (Hanya Lihat)' : 'Administrator') : 'Anggota Tim'}
                           </span>
                         </td>
                         <td className="px-3 py-3">
-                          {u.role === 'admin' || u.role === 'viewer' ? (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              u.can_view !== false
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 line-through'
+                            }`}>
+                              {u.can_view !== false ? '✓' : '✗'} Lihat
+                            </span>
+                            <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              u.can_edit !== false
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                                : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 line-through'
+                            }`}>
+                              {u.can_edit !== false ? '✓' : '✗'} Edit
+                            </span>
+                            <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              u.can_delete !== false
+                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
+                                : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 line-through'
+                            }`}>
+                              {u.can_delete !== false ? '✓' : '✗'} Hapus
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          {u.role === 'admin' ? (
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">Unlimited (Admin)</span>
                           ) : (
                             <div className="space-y-1 min-w-[130px]">
@@ -799,39 +860,19 @@ export const SettingsPage: React.FC = () => {
                             </div>
                           )}
                         </td>
-                        <td className="px-3 py-3">
-                          <span
-                            className={`rounded px-2 py-0.5 text-[10px] font-medium ${
-                              u.role === 'admin'
-                                ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                : u.role === 'viewer'
-                                ? 'bg-blue-100/70 text-blue-900 dark:bg-blue-950/40 dark:text-blue-300 font-semibold'
-                                : 'bg-amber-100/70 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300 font-semibold'
-                            }`}
-                          >
-                            {u.role === 'admin' ? 'Akses Penuh' : u.role === 'viewer' ? 'Unduh & Lihat' : 'Hanya Lihat'}
-                          </span>
-                        </td>
                         <td className="px-3 py-3 text-slate-500 dark:text-slate-400">
                           {formatDate(u.created_at)}
                         </td>
                         <td className="px-3.5 py-3 text-right">
-                          {isAdmin ? (
+                          {canAdminEdit ? (
                             <div className="flex items-center justify-end gap-1">
-                              {u.role === 'user' && (
-                                <button
-                                  onClick={() => {
-                                    setQuotaError(null);
-                                    const gb = Math.round((u.storage_quota_bytes || 16106127360) / (1024 * 1024 * 1024));
-                                    setEditQuotaGB(gb > 0 ? gb : 15);
-                                    setQuotaTarget(u);
-                                  }}
-                                  title="Ubah Kuota Drive"
-                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-800 dark:hover:bg-[#1E3E62] dark:hover:text-[#FF6500] transition-colors"
-                                >
-                                  <Sliders className="h-3.5 w-3.5" />
-                                </button>
-                              )}
+                              <button
+                                onClick={() => openEditPermissions(u)}
+                                title="Ubah Izin Akses & Kuota"
+                                className="rounded-lg p-1.5 text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-800 dark:hover:bg-[#1E3E62] dark:hover:text-[#FF6500] transition-colors"
+                              >
+                                <Sliders className="h-3.5 w-3.5" />
+                              </button>
                               <button
                                 onClick={() => {
                                   setResetError(null);
@@ -843,7 +884,7 @@ export const SettingsPage: React.FC = () => {
                               >
                                 <Key className="h-3.5 w-3.5" />
                               </button>
-                              {!isSelf && (
+                              {canAdminDelete && !isSelf && u.email !== 'admin@inmeet' && (
                                 <button
                                   onClick={() => {
                                     setDeleteError(null);
@@ -870,8 +911,8 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Kebijakan Retensi Otomatis & Pembersihan Storage (Admin & Viewer) */}
-      {(isAdmin || user?.role === 'viewer') && (
+      {/* Kebijakan Retensi Otomatis & Pembersihan Storage (Admin) */}
+      {isAdmin && (
         <div className="rounded-2xl border border-[#92B4EC]/70 bg-white p-6 shadow-sm dark:border-[#1E3E62] dark:bg-[#0B192C] space-y-5 text-xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -1108,20 +1149,98 @@ export const SettingsPage: React.FC = () => {
 
           <div>
             <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Peran Akun
+              Peran Akun (Role)
             </label>
             <select
               value={addRole}
-              onChange={(e) => setAddRole(e.target.value as 'user' | 'admin' | 'viewer')}
+              onChange={(e) => {
+                const r = e.target.value as 'user' | 'admin';
+                setAddRole(r);
+                if (r === 'admin') {
+                  setAddCanView(true);
+                  setAddCanEdit(true);
+                  setAddCanDelete(true);
+                } else {
+                  setAddCanView(true);
+                  setAddCanEdit(true);
+                  setAddCanDelete(true);
+                  setAddQuotaGB(15);
+                }
+              }}
               className="w-full rounded-xl border border-[#92B4EC]/80 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
             >
-              <option value="user">Anggota Tim (User) — Kuota Kustom, Backup Hanya-Lihat</option>
-              <option value="admin">Administrator (Penuh) — Akses Penuh & Kuota Unlimited</option>
-              <option value="viewer">Administrator (Hanya-Lihat) — Akses Pantau Seluruh Data Tanpa Izin Hapus</option>
+              <option value="user">Anggota Tim (User) — Kuota Kustom, Akses Drive Personal</option>
+              <option value="admin">Administrator — Kuota Unlimited & Hak Akses Global</option>
             </select>
           </div>
 
-          {addRole === 'user' ? (
+          <div>
+            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-2">
+              Kotak Ceklis Izin Akses:
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-start gap-2.5 rounded-xl border border-[#92B4EC]/60 bg-white p-3 dark:border-[#1E3E62] dark:bg-[#000000] cursor-pointer hover:border-[#FF6701] transition-colors">
+                <input
+                  type="checkbox"
+                  checked={addCanView}
+                  onChange={(e) => setAddCanView(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#FF6701] focus:ring-[#FF6701]"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 block">Izin Lihat (View & Download)</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Dapat membuka, melihat, dan mengunduh berkas Drive & arsip backup</span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2.5 rounded-xl border border-[#92B4EC]/60 bg-white p-3 dark:border-[#1E3E62] dark:bg-[#000000] cursor-pointer hover:border-[#FF6701] transition-colors">
+                <input
+                  type="checkbox"
+                  checked={addCanEdit}
+                  onChange={(e) => setAddCanEdit(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#FF6701] focus:ring-[#FF6701]"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 block">Izin Edit (Upload, Buat Folder, Pindah & Rename)</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Dapat mengunggah berkas baru, membuat folder, mengganti nama, dan memindahkan data</span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2.5 rounded-xl border border-[#92B4EC]/60 bg-white p-3 dark:border-[#1E3E62] dark:bg-[#000000] cursor-pointer hover:border-[#FF6701] transition-colors">
+                <input
+                  type="checkbox"
+                  checked={addCanDelete}
+                  onChange={(e) => setAddCanDelete(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#FF6701] focus:ring-[#FF6701]"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 block">Izin Hapus (Sampah & Hapus Permanen)</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Dapat memindahkan ke folder sampah, memulihkan, serta mengosongkan sampah</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {addRole === 'admin' ? (
+            addCanView && !addCanEdit && !addCanDelete ? (
+              <div className="rounded-xl border border-blue-300 bg-blue-50/80 p-3 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 text-[11px] space-y-1">
+                <span className="font-bold block text-blue-700 dark:text-blue-300">
+                  💡 Mode Administrator Hanya-Lihat Aktif:
+                </span>
+                <p>
+                  Dengan hanya mencentang izin <strong>Lihat</strong>, administrator ke-2 ini dapat melihat dan mengunduh seluruh data tim di InMeet Drive, Backup, dan Audit Log tanpa izin perubahan atau penghapusan data.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#FEA82F]/40 bg-[#FEA82F]/10 p-3 text-slate-800 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 text-[11px] space-y-1">
+                <span className="font-bold block text-[#FF6701] dark:text-[#FEA82F]">
+                  Hak Akses Administrator:
+                </span>
+                <p>
+                  Administrator memiliki kapasitas penyimpanan unlimited dan dapat mengakses seluruh file tim sesuai kotak ceklis izin yang Anda tentukan di atas.
+                </p>
+              </div>
+            )
+          ) : (
             <div className="space-y-3">
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -1144,35 +1263,15 @@ export const SettingsPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#92B4EC]/10 p-3.5 dark:border-[#1E3E62] dark:bg-[#000000] space-y-1">
+              <div className="rounded-xl border border-[#92B4EC]/60 bg-[#92B4EC]/10 p-3 dark:border-[#1E3E62] dark:bg-[#000000] space-y-1">
                 <span className="font-bold text-slate-900 dark:text-slate-100 block">
                   Hak Akses & Isolasi Anggota Tim:
                 </span>
                 <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300 text-[11px]">
                   <li><strong>InMeet Drive:</strong> Terisolasi penuh. Pengguna hanya dapat mengakses file dan folder miliknya sendiri hingga kuota <strong>{addQuotaGB} GB</strong>.</li>
-                  <li><strong>Daftar Backup:</strong> Hak akses <strong>Hanya Lihat (Read-Only)</strong> — tidak dapat mengunduh atau menghapus arsip backup.</li>
+                  <li><strong>Daftar Backup:</strong> Hanya dapat melihat daftar riwayat backup.</li>
                 </ul>
               </div>
-            </div>
-          ) : addRole === 'viewer' ? (
-            <div className="rounded-xl border border-blue-300 bg-blue-50/70 p-3.5 dark:border-blue-900/60 dark:bg-blue-950/20 space-y-1">
-              <span className="font-bold text-blue-700 dark:text-blue-400 block">
-                Hak Akses Administrator Hanya-Lihat (Read-Only):
-              </span>
-              <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300 text-[11px]">
-                <li>Dapat melihat dan memantau seluruh data tim (seluruh berkas InMeet Drive semua pengguna, backup, audit log).</li>
-                <li>Dapat mengunduh file backup dan file drive untuk kebutuhan inspeksi/audit.</li>
-                <li><strong>Dilarang:</strong> Tidak dapat mengubah (rename/move) atau menghapus berkas, folder, backup, aplikasi, atau pengguna.</li>
-              </ul>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-[#FEA82F]/40 bg-[#FEA82F]/10 p-3.5 dark:border-[#1E3E62] dark:bg-[#000000] space-y-1">
-              <span className="font-bold text-[#FF6701] dark:text-[#FEA82F] block">
-                Hak Akses Administrator (Penuh):
-              </span>
-              <p className="text-slate-600 dark:text-slate-300 text-[11px]">
-                Akun administrator penuh memiliki kuota unlimited dan kontrol penuh (melihat, mengunggah, mengubah, dan menghapus seluruh data sistem).
-              </p>
             </div>
           )}
 
@@ -1292,62 +1391,128 @@ export const SettingsPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* Modal Ubah Kuota Anggota Tim */}
+      {/* Modal Ubah Izin Akses & Kuota Pengguna */}
       <Modal
-        isOpen={!!quotaTarget}
-        onClose={() => setQuotaTarget(null)}
-        title="Ubah Alokasi Kuota InMeet Drive"
-        maxWidth="max-w-md"
+        isOpen={!!permissionTarget}
+        onClose={() => setPermissionTarget(null)}
+        title="Ubah Izin Akses & Kuota Pengguna"
+        maxWidth="max-w-lg"
       >
-        {quotaTarget && (
-          <form onSubmit={handleUpdateQuota} className="space-y-4 text-xs">
-            {quotaError && (
+        {permissionTarget && (
+          <form onSubmit={handleUpdatePermissions} className="space-y-4 text-xs">
+            {permissionError && (
               <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3 text-xs text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400">
-                {quotaError}
+                {permissionError}
               </div>
             )}
 
-            <div>
-              <span className="font-medium text-slate-500 dark:text-slate-400">Akun Anggota Tim:</span>
-              <p className="mt-0.5 font-bold text-slate-900 dark:text-white text-sm">{quotaTarget.email}</p>
+            <div className="rounded-xl border border-[#92B4EC]/60 bg-[#92B4EC]/10 p-3 dark:border-[#1E3E62] dark:bg-[#000000] flex items-center justify-between">
+              <div>
+                <span className="font-medium text-slate-500 dark:text-slate-400 block text-[11px]">Pengguna Target:</span>
+                <p className="font-bold text-slate-900 dark:text-white text-sm">{permissionTarget.email}</p>
+              </div>
+              <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+                permissionTarget.role === 'admin'
+                  ? 'bg-[#FF6701]/15 text-[#FF6701] dark:bg-[#FF6500]/20 dark:text-[#FF6500]'
+                  : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+              }`}>
+                {permissionTarget.role === 'admin' ? 'Administrator' : 'Anggota Tim'}
+              </span>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Alokasi Kuota Penyimpanan (GB)
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Kotak Izin Akses (Centang izin yang diberikan):
               </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="10000"
-                  required
-                  autoFocus
-                  value={editQuotaGB}
-                  onChange={(e) => setEditQuotaGB(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full rounded-xl border border-[#92B4EC]/80 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
-                />
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">GB</span>
+              <div className="space-y-2">
+                <label className="flex items-start gap-2.5 rounded-xl border border-[#92B4EC]/60 bg-white p-3 dark:border-[#1E3E62] dark:bg-[#000000] cursor-pointer hover:border-[#FF6701] transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={editCanView}
+                    onChange={(e) => setEditCanView(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#FF6701] focus:ring-[#FF6701]"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 block">Izin Lihat (View & Download)</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Dapat membuka, melihat, dan mengunduh berkas Drive & backup</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2.5 rounded-xl border border-[#92B4EC]/60 bg-white p-3 dark:border-[#1E3E62] dark:bg-[#000000] cursor-pointer hover:border-[#FF6701] transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={editCanEdit}
+                    onChange={(e) => setEditCanEdit(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#FF6701] focus:ring-[#FF6701]"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 block">Izin Edit (Upload, Buat Folder, Pindah & Rename)</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Dapat mengunggah berkas baru, membuat folder, mengganti nama, dan memindahkan data</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2.5 rounded-xl border border-[#92B4EC]/60 bg-white p-3 dark:border-[#1E3E62] dark:bg-[#000000] cursor-pointer hover:border-[#FF6701] transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={editCanDelete}
+                    onChange={(e) => setEditCanDelete(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#FF6701] focus:ring-[#FF6701]"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 block">Izin Hapus (Sampah & Hapus Permanen)</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Dapat memindahkan berkas ke folder sampah, memulihkan, serta mengosongkan sampah</span>
+                  </div>
+                </label>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Setara dengan {formatBytes(editQuotaGB * 1024 * 1024 * 1024)}.
-              </p>
             </div>
+
+            {permissionTarget.role === 'admin' ? (
+              editCanView && !editCanEdit && !editCanDelete ? (
+                <div className="rounded-xl border border-blue-300 bg-blue-50/80 p-3 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 text-[11px]">
+                  <strong>Mode Administrator Hanya-Lihat Aktif:</strong> Akun administrator ini dapat melihat dan mengunduh seluruh data tim di InMeet Drive, Backup, dan Audit Log tanpa izin perubahan atau penghapusan data.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-emerald-300 bg-emerald-50/80 p-3 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 text-[11px]">
+                  Administrator dengan izin kustom terpilih. Kuota penyimpanan InMeet Drive untuk peran Administrator adalah unlimited.
+                </div>
+              )
+            ) : (
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Alokasi Kuota InMeet Drive (GB)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="10000"
+                    required
+                    value={editQuotaGB}
+                    onChange={(e) => setEditQuotaGB(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full rounded-xl border border-[#92B4EC]/80 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500]"
+                  />
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300">GB</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Setara dengan {formatBytes(editQuotaGB * 1024 * 1024 * 1024)}.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-3 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]">
               <button
                 type="button"
-                onClick={() => setQuotaTarget(null)}
+                onClick={() => setPermissionTarget(null)}
                 className="rounded-xl px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 Batal
               </button>
               <button
                 type="submit"
-                disabled={isUpdatingQuota}
+                disabled={isUpdatingPermissions}
                 className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] hover:bg-[#FF6500] px-4 py-2 font-bold text-white transition-all shadow-md shadow-[#FF6701]/20 disabled:opacity-50 dark:bg-[#FF6500] dark:text-white dark:shadow-[#FF6500]/20"
               >
-                {isUpdatingQuota ? 'Menyimpan...' : 'Simpan Kuota'}
+                {isUpdatingPermissions ? 'Menyimpan...' : 'Simpan Izin & Kuota'}
               </button>
             </div>
           </form>

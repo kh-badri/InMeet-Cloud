@@ -29,7 +29,17 @@ type CreateUserRequest struct {
 	Email             string `json:"email"`
 	Password          string `json:"password"`
 	Role              string `json:"role"`
+	CanView           *bool  `json:"can_view"`
+	CanEdit           *bool  `json:"can_edit"`
+	CanDelete         *bool  `json:"can_delete"`
 	StorageQuotaBytes int64  `json:"storage_quota_bytes"`
+}
+
+type UpdateUserPermissionsRequest struct {
+	CanView           *bool  `json:"can_view"`
+	CanEdit           *bool  `json:"can_edit"`
+	CanDelete         *bool  `json:"can_delete"`
+	StorageQuotaBytes *int64 `json:"storage_quota_bytes"`
 }
 
 type ResetPasswordRequest struct {
@@ -291,7 +301,20 @@ func (h *AuthHandler) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 		role = model.Role(req.Role)
 	}
 
-	newUser, err := h.authService.CreateTeamUser(r.Context(), admin.ID, req.Email, req.Password, role, req.StorageQuotaBytes)
+	canView := true
+	if req.CanView != nil {
+		canView = *req.CanView
+	}
+	canEdit := true
+	if req.CanEdit != nil {
+		canEdit = *req.CanEdit
+	}
+	canDelete := true
+	if req.CanDelete != nil {
+		canDelete = *req.CanDelete
+	}
+
+	newUser, err := h.authService.CreateTeamUser(r.Context(), admin.ID, req.Email, req.Password, role, canView, canEdit, canDelete, req.StorageQuotaBytes)
 	if err != nil {
 		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -376,6 +399,58 @@ func (h *AuthHandler) HandleUpdateQuota(w http.ResponseWriter, r *http.Request) 
 	}
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "kuota penyimpanan berhasil diperbarui"})
+}
+
+func (h *AuthHandler) HandleUpdateUserPermissions(w http.ResponseWriter, r *http.Request) {
+	admin := GetCurrentUser(r.Context())
+	if admin == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	targetIDStr := chi.URLParam(r, "id")
+	targetID, err := uuid.Parse(targetIDStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	var req UpdateUserPermissionsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	target, err := h.authService.GetUserByID(r.Context(), targetID)
+	if err != nil {
+		WriteJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+
+	canView := target.CanView
+	if req.CanView != nil {
+		canView = *req.CanView
+	}
+	canEdit := target.CanEdit
+	if req.CanEdit != nil {
+		canEdit = *req.CanEdit
+	}
+	canDelete := target.CanDelete
+	if req.CanDelete != nil {
+		canDelete = *req.CanDelete
+	}
+
+	quotaBytes := target.StorageQuotaBytes
+	if req.StorageQuotaBytes != nil {
+		quotaBytes = *req.StorageQuotaBytes
+	}
+
+	if err := h.authService.UpdateTeamUserPermissionsAndQuota(r.Context(), admin.ID, targetID, canView, canEdit, canDelete, quotaBytes); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "izin dan kuota pengguna berhasil diperbarui"})
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data interface{}) {

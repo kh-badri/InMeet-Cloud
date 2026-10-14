@@ -63,8 +63,11 @@ export const DrivePage: React.FC = () => {
   const { startUpload } = useDriveUpload();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const isViewer = user?.role === 'viewer';
-  const isAdminOrViewer = isAdmin || isViewer;
+  const canView = user?.can_view !== false;
+  const canEdit = user?.can_edit !== false;
+  const canDelete = user?.can_delete !== false;
+  const isReadOnly = !canEdit && !canDelete;
+  const isAdminOrViewer = isAdmin;
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<'drive' | 'trash'>('drive');
@@ -136,6 +139,7 @@ export const DrivePage: React.FC = () => {
       }
       return apiRequest<DriveListResponse>(`/api/v1/drive/items?${params.toString()}`);
     },
+    enabled: canView,
   });
 
   // Create Folder Mutation
@@ -214,6 +218,7 @@ export const DrivePage: React.FC = () => {
       const qs = params.toString() ? `?${params.toString()}` : '';
       return apiRequest<{ items: DriveItem[] }>(`/api/v1/drive/trash${qs}`);
     },
+    enabled: canView,
   });
 
   // Restore Trash Item Mutation
@@ -310,8 +315,8 @@ export const DrivePage: React.FC = () => {
 
   // Helper to upload list of files using the background chunked resumable upload engine
   const handleUploadFiles = async (files: FileList | File[]) => {
-    if (isViewer) {
-      setActionError('Peran Administrator Hanya-Lihat tidak diizinkan mengunggah berkas');
+    if (!canEdit) {
+      setActionError('Akun Anda tidak memiliki izin untuk mengunggah berkas');
       return;
     }
     if (!files || files.length === 0) return;
@@ -325,7 +330,7 @@ export const DrivePage: React.FC = () => {
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (activeTab === 'trash' || isViewer) return;
+    if (activeTab === 'trash' || !canEdit) return;
     setIsDragOver(true);
   };
 
@@ -337,7 +342,7 @@ export const DrivePage: React.FC = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    if (activeTab === 'trash' || isViewer) return;
+    if (activeTab === 'trash' || !canEdit) return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleUploadFiles(e.dataTransfer.files);
     }
@@ -412,6 +417,20 @@ export const DrivePage: React.FC = () => {
     !debouncedSearch || item.name.toLowerCase().includes(debouncedSearch.toLowerCase())
   );
 
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 space-y-4">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+          <AlertTriangle className="h-8 w-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Akses Dibatasi</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md">
+          Akun Anda tidak memiliki izin untuk melihat InMeet Drive. Hubungi administrator utama untuk meminta izin akses &quot;Lihat&quot;.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -465,12 +484,12 @@ export const DrivePage: React.FC = () => {
         </div>
       )}
 
-      {/* Viewer Read-Only Notice Banner */}
-      {isViewer && (
+      {/* Read-Only Notice Banner */}
+      {isReadOnly && (
         <div className="flex items-center gap-2.5 rounded-2xl border border-blue-300 bg-blue-50/80 p-3.5 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 text-xs shadow-xs animate-fade-in">
           <AlertCircle className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
           <span>
-            <strong>Mode Administrator Hanya-Lihat (Read-Only):</strong> Anda dapat memantau dan mengunduh seluruh data InMeet Drive milik semua anggota tim, namun tidak memiliki izin untuk mengunggah, mengubah nama, memindahkan, atau menghapus berkas/folder.
+            <strong>{isAdmin ? 'Mode Administrator Hanya-Lihat (Read-Only):' : 'Mode Akses Hanya-Lihat (Read-Only):'}</strong> Anda dapat memantau dan mengunduh berkas, namun tidak memiliki izin untuk mengunggah, mengubah nama, memindahkan, atau menghapus berkas/folder.
           </span>
         </div>
       )}
@@ -528,7 +547,7 @@ export const DrivePage: React.FC = () => {
                   </div>
                 ) : activeTab === 'drive' && data ? (
                   <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                    ({formatBytes(data.total_bytes)}) · <span className="text-emerald-500 font-bold">Unlimited {isAdmin ? '(Admin)' : isViewer ? '(Viewer)' : ''}</span>
+                    ({formatBytes(data.total_bytes)}) · <span className="text-emerald-500 font-bold">Unlimited {isAdmin ? '(Admin)' : ''}</span>
                   </span>
                 ) : null}
               </div>
@@ -582,7 +601,7 @@ export const DrivePage: React.FC = () => {
 
             {activeTab === 'drive' ? (
               <>
-                {!isViewer && (
+                {canEdit && (
                   <>
                     <button
                       onClick={() => setIsNewFolderOpen(true)}
@@ -621,7 +640,7 @@ export const DrivePage: React.FC = () => {
               </>
             ) : (
               <>
-                {!isViewer && (
+                {canDelete && (
                   <button
                     onClick={() => setIsEmptyTrashOpen(true)}
                     disabled={!trashData?.items || trashData.items.length === 0 || emptyTrashMutation.isPending}
@@ -725,7 +744,7 @@ export const DrivePage: React.FC = () => {
                   <option value="all">Semua Pengguna (Semua Tim)</option>
                   {teamUsers?.map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.email} ({u.role === 'admin' ? 'Admin' : u.role === 'viewer' ? 'Admin (Lihat)' : 'User'})
+                      {u.email} ({u.role === 'admin' ? (u.can_edit === false && u.can_delete === false ? 'Admin (Lihat)' : 'Admin') : 'User'})
                     </option>
                   ))}
                 </select>
@@ -913,7 +932,7 @@ export const DrivePage: React.FC = () => {
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between gap-2">
-                      {!isViewer ? (
+                      {canDelete || canEdit ? (
                         <>
                           <button
                             onClick={() => restoreMutation.mutate(item.id)}
@@ -924,13 +943,15 @@ export const DrivePage: React.FC = () => {
                             <RotateCcw className="h-3.5 w-3.5 text-white" />
                             <span>Pulihkan</span>
                           </button>
-                          <button
-                            onClick={() => setPermanentDeleteTarget(item)}
-                            className="p-1.5 rounded-xl border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
-                            title="Hapus Permanen"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => setPermanentDeleteTarget(item)}
+                              className="p-1.5 rounded-xl border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
+                              title="Hapus Permanen"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </>
                       ) : (
                         <span className="text-[10px] text-slate-400 italic text-center w-full py-0.5">
@@ -1010,7 +1031,7 @@ export const DrivePage: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {!isViewer ? (
+                              {canDelete || canEdit ? (
                                 <>
                                   <button
                                     onClick={() => restoreMutation.mutate(item.id)}
@@ -1021,13 +1042,15 @@ export const DrivePage: React.FC = () => {
                                     <RotateCcw className="h-3.5 w-3.5 text-white" />
                                     <span>Pulihkan</span>
                                   </button>
-                                  <button
-                                    onClick={() => setPermanentDeleteTarget(item)}
-                                    className="p-1.5 rounded-lg border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
-                                    title="Hapus Permanen"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
+                                  {canDelete && (
+                                    <button
+                                      onClick={() => setPermanentDeleteTarget(item)}
+                                      className="p-1.5 rounded-lg border border-red-500/30 text-red-600 hover:bg-red-500/15 dark:text-red-400 transition-colors"
+                                      title="Hapus Permanen"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
                                 </>
                               ) : (
                                 <span className="text-[10px] text-slate-400 italic">Hanya Lihat</span>
@@ -1065,7 +1088,7 @@ export const DrivePage: React.FC = () => {
               ? `Tidak ada berkas atau folder yang cocok dengan pencarian "${debouncedSearch}".`
               : 'Tarik dan lepaskan berkas ke sini, atau klik tombol di bawah untuk mulai menyimpan.'}
           </p>
-          {!debouncedSearch && !isViewer && (
+          {!debouncedSearch && canEdit && (
             <div className="flex items-center gap-2 mt-5">
               <button
                 onClick={() => setIsNewFolderOpen(true)}
@@ -1132,7 +1155,7 @@ export const DrivePage: React.FC = () => {
 
                     {/* Actions Menu */}
                     <div className="flex items-center gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!isViewer && (
+                      {canEdit && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1154,30 +1177,30 @@ export const DrivePage: React.FC = () => {
                       >
                         <Download className="h-3.5 w-3.5" />
                       </button>
-                      {!isViewer && (
-                        <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRenameTarget(folder);
-                              setNewName(folder.name);
-                            }}
-                            title="Ganti Nama"
-                            className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget(folder);
-                            }}
-                            title="Hapus"
-                            className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </>
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenameTarget(folder);
+                            setNewName(folder.name);
+                          }}
+                          title="Ganti Nama"
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget(folder);
+                          }}
+                          title="Hapus"
+                          className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
                   </div>
@@ -1248,7 +1271,7 @@ export const DrivePage: React.FC = () => {
 
                       {/* Card Actions */}
                       <div className="mt-3 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between">
-                        {!isViewer ? (
+                        {canEdit ? (
                           <button
                             onClick={() => openMoveModal(file)}
                             title="Pindahkan Berkas"
@@ -1264,26 +1287,26 @@ export const DrivePage: React.FC = () => {
                         >
                           <Download className="h-3.5 w-3.5" />
                         </button>
-                        {!isViewer && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setRenameTarget(file);
-                                setNewName(file.name);
-                              }}
-                              title="Ganti Nama"
-                              className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                            >
-                              <Edit3 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget(file)}
-                              title="Hapus"
-                              className="p-1 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </>
+                        {canEdit && (
+                          <button
+                            onClick={() => {
+                              setRenameTarget(file);
+                              setNewName(file.name);
+                            }}
+                            title="Ganti Nama"
+                            className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => setDeleteTarget(file)}
+                            title="Hapus"
+                            className="p-1 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1346,7 +1369,7 @@ export const DrivePage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {!isViewer && (
+                            {canEdit && (
                               <button
                                 onClick={() => openMoveModal(folder)}
                                 title="Pindahkan Folder"
@@ -1362,26 +1385,26 @@ export const DrivePage: React.FC = () => {
                             >
                               <Download className="h-4 w-4" />
                             </button>
-                            {!isViewer && (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    setRenameTarget(folder);
-                                    setNewName(folder.name);
-                                  }}
-                                  title="Ganti Nama"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => setDeleteTarget(folder)}
-                                  title="Hapus"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </>
+                            {canEdit && (
+                              <button
+                                onClick={() => {
+                                  setRenameTarget(folder);
+                                  setNewName(folder.name);
+                                }}
+                                title="Ganti Nama"
+                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => setDeleteTarget(folder)}
+                                title="Hapus"
+                                className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             )}
                           </div>
                         </td>
@@ -1433,7 +1456,7 @@ export const DrivePage: React.FC = () => {
                                 <Eye className="h-4 w-4" />
                               </button>
                             )}
-                            {!isViewer && (
+                            {canEdit && (
                               <button
                                 onClick={() => openMoveModal(file)}
                                 title="Pindahkan Berkas"
@@ -1449,26 +1472,26 @@ export const DrivePage: React.FC = () => {
                             >
                               <Download className="h-4 w-4" />
                             </button>
-                            {!isViewer && (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    setRenameTarget(file);
-                                    setNewName(file.name);
-                                  }}
-                                  title="Ganti Nama"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => setDeleteTarget(file)}
-                                  title="Hapus"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </>
+                            {canEdit && (
+                              <button
+                                onClick={() => {
+                                  setRenameTarget(file);
+                                  setNewName(file.name);
+                                }}
+                                title="Ganti Nama"
+                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => setDeleteTarget(file)}
+                                title="Hapus"
+                                className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             )}
                           </div>
                         </td>

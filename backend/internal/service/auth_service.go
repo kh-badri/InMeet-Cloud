@@ -419,7 +419,11 @@ func (s *AuthService) UpdateEmail(ctx context.Context, userID uuid.UUID, newEmai
 	return user, nil
 }
 
-func (s *AuthService) CreateTeamUser(ctx context.Context, adminID uuid.UUID, email, password string, role model.Role, quotaBytes int64) (*model.User, error) {
+func (s *AuthService) GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
+	return s.userRepo.GetByID(ctx, id)
+}
+
+func (s *AuthService) CreateTeamUser(ctx context.Context, adminID uuid.UUID, email, password string, role model.Role, canView, canEdit, canDelete bool, quotaBytes int64) (*model.User, error) {
 	email = strings.TrimSpace(email)
 	if email == "" || !strings.Contains(email, "@") {
 		return nil, errors.New("format email tidak valid")
@@ -432,11 +436,11 @@ func (s *AuthService) CreateTeamUser(ctx context.Context, adminID uuid.UUID, ema
 	if role == "" {
 		role = model.RoleUser
 	}
-	if role != model.RoleUser && role != model.RoleViewer && role != model.RoleAdmin {
-		return nil, errors.New("peran tidak valid. Pilihan: user, viewer, atau admin")
+	if role != model.RoleUser && role != model.RoleAdmin {
+		return nil, errors.New("peran tidak valid. Pilihan: user atau admin")
 	}
 
-	if role == model.RoleAdmin || role == model.RoleViewer {
+	if role == model.RoleAdmin {
 		quotaBytes = 0
 	} else if quotaBytes <= 0 {
 		quotaBytes = 16106127360 // 15 GB default
@@ -453,7 +457,7 @@ func (s *AuthService) CreateTeamUser(ctx context.Context, adminID uuid.UUID, ema
 		return nil, fmt.Errorf("gagal mengenkripsi password: %w", err)
 	}
 
-	user, err := s.userRepo.CreateUser(ctx, email, hash, role, quotaBytes)
+	user, err := s.userRepo.CreateUser(ctx, email, hash, role, canView, canEdit, canDelete, quotaBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -461,10 +465,49 @@ func (s *AuthService) CreateTeamUser(ctx context.Context, adminID uuid.UUID, ema
 	s.auditRepo.LogCtx(ctx, "user", adminID.String(), "team_user_created", "auth", user.ID.String(), map[string]interface{}{
 		"email":               email,
 		"role":                role,
+		"can_view":            canView,
+		"can_edit":            canEdit,
+		"can_delete":          canDelete,
 		"storage_quota_bytes": quotaBytes,
 	})
 
 	return user, nil
+}
+
+func (s *AuthService) UpdateTeamUserPermissionsAndQuota(ctx context.Context, adminID, targetUserID uuid.UUID, canView, canEdit, canDelete bool, quotaBytes int64) error {
+	if adminID == targetUserID {
+		return errors.New("tidak dapat mengubah izin atau kuota akun Anda sendiri")
+	}
+
+	target, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+
+	if strings.EqualFold(target.Email, "admin@inmeet") {
+		return errors.New("tidak dapat mengubah izin atau kuota akun administrator utama")
+	}
+
+	if target.Role == model.RoleAdmin {
+		quotaBytes = 0
+	} else if quotaBytes < 0 {
+		return errors.New("kuota penyimpanan tidak valid")
+	}
+
+	if err := s.userRepo.UpdateUserPermissionsAndQuota(ctx, targetUserID, canView, canEdit, canDelete, quotaBytes); err != nil {
+		return err
+	}
+
+	s.auditRepo.LogCtx(ctx, "user", adminID.String(), "team_user_permissions_updated", "auth", targetUserID.String(), map[string]interface{}{
+		"email":           target.Email,
+		"role":            target.Role,
+		"can_view":        canView,
+		"can_edit":        canEdit,
+		"can_delete":      canDelete,
+		"new_quota_bytes": quotaBytes,
+	})
+
+	return nil
 }
 
 func (s *AuthService) UpdateTeamUserQuota(ctx context.Context, adminID, targetUserID uuid.UUID, quotaBytes int64) error {
@@ -508,8 +551,8 @@ func (s *AuthService) DeleteTeamUser(ctx context.Context, adminID, targetUserID 
 		return err
 	}
 
-	if target.Role == model.RoleAdmin {
-		return errors.New("tidak dapat menghapus akun administrator")
+	if strings.EqualFold(target.Email, "admin@inmeet") {
+		return errors.New("tidak dapat menghapus akun administrator utama")
 	}
 
 	if err := s.userRepo.DeleteUser(ctx, targetUserID); err != nil {

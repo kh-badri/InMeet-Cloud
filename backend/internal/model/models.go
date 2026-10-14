@@ -19,6 +19,9 @@ type User struct {
 	Email             string    `json:"email"`
 	PasswordHash      string    `json:"-"`
 	Role              Role      `json:"role"`
+	CanView           bool      `json:"can_view"`
+	CanEdit           bool      `json:"can_edit"`
+	CanDelete         bool      `json:"can_delete"`
 	StorageQuotaBytes int64     `json:"storage_quota_bytes"`
 	StorageUsedBytes  int64     `json:"storage_used_bytes,omitempty"`
 	TOTPSecret        *string   `json:"-"`
@@ -26,6 +29,30 @@ type User struct {
 	RecoveryCodes     []string  `json:"-"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+func (u *User) IsAdmin() bool {
+	return u.Role == RoleAdmin
+}
+
+func (u *User) IsUser() bool {
+	return u.Role == RoleUser
+}
+
+func (u *User) HasView() bool {
+	return u.CanView
+}
+
+func (u *User) HasEdit() bool {
+	return u.CanEdit
+}
+
+func (u *User) HasDelete() bool {
+	return u.CanDelete
+}
+
+func (u *User) IsReadOnlyAdmin() bool {
+	return u.Role == RoleAdmin && !u.CanEdit && !u.CanDelete
 }
 
 type Session struct {

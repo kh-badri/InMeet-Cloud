@@ -22,10 +22,13 @@ import (
 var (
 	ErrInvalidItemName    = errors.New("nama berkas atau folder tidak valid")
 	ErrParentNotFound     = errors.New("folder induk tidak ditemukan")
-	ErrInvalidDestination = errors.New("folder tujuan tidak valid")
-	ErrCircularFolderMove = errors.New("tidak dapat memindahkan folder ke dalam subfolder turunannya")
-	ErrViewerReadOnly     = errors.New("peran Administrator Hanya-Lihat tidak diizinkan mengubah atau menghapus data")
-	ErrAccessDenied       = errors.New("akses ditolak")
+	ErrInvalidDestination     = errors.New("folder tujuan tidak valid")
+	ErrCircularFolderMove     = errors.New("tidak dapat memindahkan folder ke dalam subfolder turunannya")
+	ErrPermissionViewDenied   = errors.New("akun Anda tidak memiliki izin untuk melihat atau mengunduh data")
+	ErrPermissionEditDenied   = errors.New("akun Anda tidak memiliki izin untuk mengedit atau mengunggah data")
+	ErrPermissionDeleteDenied = errors.New("akun Anda tidak memiliki izin untuk menghapus data")
+	ErrViewerReadOnly         = ErrPermissionEditDenied
+	ErrAccessDenied           = errors.New("akses ditolak")
 )
 
 type DriveService struct {
@@ -67,6 +70,9 @@ func (s *DriveService) LogAudit(ctx context.Context, userID uuid.UUID, action, t
 func (s *DriveService) ListItems(ctx context.Context, caller *model.User, targetUserID *uuid.UUID, parentID *uuid.UUID, query string) (*model.DriveListResponse, error) {
 	if caller == nil {
 		return nil, ErrAccessDenied
+	}
+	if !caller.CanView {
+		return nil, ErrPermissionViewDenied
 	}
 
 	var effectiveUserID *uuid.UUID
@@ -174,8 +180,8 @@ func (s *DriveService) CreateFolder(ctx context.Context, caller *model.User, par
 	if caller == nil {
 		return nil, ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return nil, ErrViewerReadOnly
+	if !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
 	}
 
 	cleanName := strings.TrimSpace(name)
@@ -214,8 +220,8 @@ func (s *DriveService) UploadFile(
 	if caller == nil {
 		return nil, ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return nil, ErrViewerReadOnly
+	if !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
 	}
 
 	effectiveParentID := initialParentID
@@ -343,6 +349,9 @@ func (s *DriveService) GetItem(ctx context.Context, caller *model.User, id uuid.
 	if caller == nil {
 		return nil, ErrAccessDenied
 	}
+	if !caller.CanView {
+		return nil, ErrPermissionViewDenied
+	}
 	if caller.Role == model.RoleUser {
 		return s.repo.GetByID(ctx, id, caller.ID)
 	}
@@ -354,8 +363,8 @@ func (s *DriveService) DeleteItem(ctx context.Context, caller *model.User, id uu
 	if caller == nil {
 		return ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return ErrViewerReadOnly
+	if !caller.CanDelete {
+		return ErrPermissionDeleteDenied
 	}
 
 	var item *model.DriveItem
@@ -387,6 +396,9 @@ func (s *DriveService) ListTrash(ctx context.Context, caller *model.User, target
 	if caller == nil {
 		return nil, ErrAccessDenied
 	}
+	if !caller.CanView {
+		return nil, ErrPermissionViewDenied
+	}
 	if caller.Role == model.RoleUser {
 		return s.repo.ListTrash(ctx, &caller.ID)
 	}
@@ -398,8 +410,8 @@ func (s *DriveService) RestoreItem(ctx context.Context, caller *model.User, id u
 	if caller == nil {
 		return ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return ErrViewerReadOnly
+	if !caller.CanDelete && !caller.CanEdit {
+		return ErrPermissionEditDenied
 	}
 
 	var item *model.DriveItem
@@ -430,8 +442,8 @@ func (s *DriveService) PermanentDeleteItem(ctx context.Context, caller *model.Us
 	if caller == nil {
 		return ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return ErrViewerReadOnly
+	if !caller.CanDelete {
+		return ErrPermissionDeleteDenied
 	}
 
 	var item *model.DriveItem
@@ -475,8 +487,8 @@ func (s *DriveService) EmptyTrash(ctx context.Context, caller *model.User, targe
 	if caller == nil {
 		return ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return ErrViewerReadOnly
+	if !caller.CanDelete {
+		return ErrPermissionDeleteDenied
 	}
 
 	var effectiveUserID *uuid.UUID
@@ -526,8 +538,8 @@ func (s *DriveService) RenameItem(ctx context.Context, caller *model.User, id uu
 	if caller == nil {
 		return ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return ErrViewerReadOnly
+	if !caller.CanEdit {
+		return ErrPermissionEditDenied
 	}
 
 	cleanName := strings.TrimSpace(newName)
@@ -562,6 +574,9 @@ func (s *DriveService) RenameItem(ctx context.Context, caller *model.User, id uu
 func (s *DriveService) ZipFolder(ctx context.Context, caller *model.User, folderID uuid.UUID, w http.ResponseWriter) error {
 	if caller == nil {
 		return ErrAccessDenied
+	}
+	if !caller.CanView {
+		return ErrPermissionViewDenied
 	}
 
 	var folder *model.DriveItem
@@ -644,8 +659,8 @@ func (s *DriveService) MoveItem(ctx context.Context, caller *model.User, id uuid
 	if caller == nil {
 		return ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return ErrViewerReadOnly
+	if !caller.CanEdit {
+		return ErrPermissionEditDenied
 	}
 
 	var item *model.DriveItem
@@ -709,6 +724,9 @@ func (s *DriveService) ListAllFolders(ctx context.Context, caller *model.User, t
 	if caller == nil {
 		return nil, ErrAccessDenied
 	}
+	if !caller.CanView {
+		return nil, ErrPermissionViewDenied
+	}
 	if caller.Role == model.RoleUser {
 		return s.repo.ListAllFolders(ctx, &caller.ID)
 	}
@@ -719,8 +737,8 @@ func (s *DriveService) InitUploadSession(ctx context.Context, caller *model.User
 	if caller == nil {
 		return nil, ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return nil, ErrViewerReadOnly
+	if !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
 	}
 
 	if req.TotalBytes <= 0 {
@@ -821,8 +839,8 @@ func (s *DriveService) SaveChunk(ctx context.Context, caller *model.User, upload
 	if caller == nil {
 		return 0, ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return 0, ErrViewerReadOnly
+	if !caller.CanEdit {
+		return 0, ErrPermissionEditDenied
 	}
 
 	session, err := s.repo.GetUploadSession(ctx, uploadID, caller.ID)
@@ -864,8 +882,8 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, caller *model.
 	if caller == nil {
 		return nil, ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return nil, ErrViewerReadOnly
+	if !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
 	}
 
 	session, err := s.repo.GetUploadSession(ctx, uploadID, caller.ID)
@@ -1010,8 +1028,8 @@ func (s *DriveService) AbortUploadSession(ctx context.Context, caller *model.Use
 	if caller == nil {
 		return ErrAccessDenied
 	}
-	if caller.Role == model.RoleViewer {
-		return ErrViewerReadOnly
+	if !caller.CanEdit {
+		return ErrPermissionEditDenied
 	}
 	session, err := s.repo.GetUploadSession(ctx, uploadID, caller.ID)
 	if err == nil && session.TempPath != "" {

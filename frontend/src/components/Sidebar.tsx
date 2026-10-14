@@ -21,7 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose 
 }) => {
   const { user } = useAuth();
-  const isAdminOrViewer = user?.role === 'admin' || user?.role === 'viewer';
+  const isAdmin = user?.role === 'admin';
 
   const primaryItems: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: string; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
@@ -37,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const renderItem = (item: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: string; adminOnly?: boolean }) => {
-    if (item.adminOnly && !isAdminOrViewer) return null;
+    if (item.adminOnly && !isAdmin) return null;
     const isActive = activeTab === item.id;
 
     return (

@@ -85,16 +85,45 @@ func RequireAdmin(next http.Handler) http.Handler {
 	})
 }
 
-// RequireAdminOrViewer enforces admin or viewer role
-func RequireAdminOrViewer(next http.Handler) http.Handler {
+// RequireAdminWithView enforces admin role with can_view permission
+func RequireAdminWithView(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := GetCurrentUser(r.Context())
-		if user == nil || (user.Role != model.RoleAdmin && user.Role != model.RoleViewer) {
-			http.Error(w, `{"error":"forbidden: admin or viewer access required"}`, http.StatusForbidden)
+		if user == nil || user.Role != model.RoleAdmin || !user.CanView {
+			http.Error(w, `{"error":"forbidden: admin view access required"}`, http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequireAdminWithEdit enforces admin role with can_edit permission
+func RequireAdminWithEdit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := GetCurrentUser(r.Context())
+		if user == nil || user.Role != model.RoleAdmin || !user.CanEdit {
+			http.Error(w, `{"error":"forbidden: akun administrator Anda tidak memiliki izin edit"}`, http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequireAdminWithDelete enforces admin role with can_delete permission
+func RequireAdminWithDelete(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := GetCurrentUser(r.Context())
+		if user == nil || user.Role != model.RoleAdmin || !user.CanDelete {
+			http.Error(w, `{"error":"forbidden: akun administrator Anda tidak memiliki izin hapus"}`, http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequireAdminOrViewer maintains compatibility with read-only admin checks
+func RequireAdminOrViewer(next http.Handler) http.Handler {
+	return RequireAdminWithView(next)
 }
 
 // CSRFMiddleware checks CSRF token for mutating requests when user session is present

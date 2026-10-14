@@ -24,6 +24,13 @@ func NewDriveHandler(driveService *service.DriveService) *DriveHandler {
 	return &DriveHandler{driveService: driveService}
 }
 
+func isPermissionDenied(err error) bool {
+	return errors.Is(err, service.ErrPermissionViewDenied) ||
+		errors.Is(err, service.ErrPermissionEditDenied) ||
+		errors.Is(err, service.ErrPermissionDeleteDenied) ||
+		errors.Is(err, service.ErrViewerReadOnly)
+}
+
 func (h *DriveHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	user := GetCurrentUser(r.Context())
 	if user == nil {
@@ -51,6 +58,10 @@ func (h *DriveHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.driveService.ListItems(r.Context(), user, targetUserID, parentID, q)
 	if err != nil {
+		if isPermissionDenied(err) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
 		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -85,7 +96,7 @@ func (h *DriveHandler) HandleCreateFolder(w http.ResponseWriter, r *http.Request
 
 	item, err := h.driveService.CreateFolder(r.Context(), user, parentID, req.Name)
 	if err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -139,7 +150,7 @@ func (h *DriveHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		mimeType,
 	)
 	if err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -231,7 +242,7 @@ func (h *DriveHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.driveService.DeleteItem(r.Context(), user, id); err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -273,7 +284,7 @@ func (h *DriveHandler) HandleRename(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.driveService.RenameItem(r.Context(), user, id, cleanName); err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -305,7 +316,7 @@ func (h *DriveHandler) HandleMove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.driveService.MoveItem(r.Context(), user, id, req.TargetParentID); err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -356,7 +367,7 @@ func (h *DriveHandler) HandleInitUpload(w http.ResponseWriter, r *http.Request) 
 
 	res, err := h.driveService.InitUploadSession(r.Context(), user, &req)
 	if err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -407,7 +418,7 @@ func (h *DriveHandler) HandleUploadChunk(w http.ResponseWriter, r *http.Request)
 
 	uploadedBytes, err := h.driveService.SaveChunk(r.Context(), user, uploadID, chunkIndex, chunkReader)
 	if err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -437,7 +448,7 @@ func (h *DriveHandler) HandleCompleteUpload(w http.ResponseWriter, r *http.Reque
 
 	item, err := h.driveService.CompleteUploadSession(r.Context(), user, req.UploadID)
 	if err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -479,7 +490,7 @@ func (h *DriveHandler) HandleAbortUpload(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.driveService.AbortUploadSession(r.Context(), user, id); err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -532,7 +543,7 @@ func (h *DriveHandler) HandleRestoreTrash(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := h.driveService.RestoreItem(r.Context(), user, id); err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -558,7 +569,7 @@ func (h *DriveHandler) HandlePermanentDeleteTrash(w http.ResponseWriter, r *http
 	}
 
 	if err := h.driveService.PermanentDeleteItem(r.Context(), user, id); err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}
@@ -586,7 +597,7 @@ func (h *DriveHandler) HandleEmptyTrash(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.driveService.EmptyTrash(r.Context(), user, targetUserID); err != nil {
-		if errors.Is(err, service.ErrViewerReadOnly) {
+		if isPermissionDenied(err) {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 			return
 		}

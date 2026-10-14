@@ -173,44 +173,45 @@ func main() {
 	// Applications & API keys routes
 	r.Route("/api/v1/apps", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
-		r.With(handler.RequireAdminOrViewer).Get("/", appHandler.HandleList)
-		r.With(handler.RequireAdminOrViewer).Get("/{id}", appHandler.HandleGet)
+		r.With(handler.RequireAdminWithView).Get("/", appHandler.HandleList)
+		r.With(handler.RequireAdminWithView).Get("/{id}", appHandler.HandleGet)
 
 		r.Group(func(r chi.Router) {
-			r.Use(handler.RequireAdmin)
+			r.Use(handler.RequireAdminWithEdit)
 			r.Post("/", appHandler.HandleCreate)
 			r.Put("/{id}", appHandler.HandleUpdate)
 			r.Get("/{id}/keys", appHandler.HandleListKeys)
 			r.Post("/{id}/keys", appHandler.HandleCreateKey)
-			r.Delete("/{id}/keys/{keyId}", appHandler.HandleRevokeKey)
 		})
+		r.With(handler.RequireAdminWithDelete).Delete("/{id}/keys/{keyId}", appHandler.HandleRevokeKey)
 	})
 
-	// Backups routes (Session authenticated; team role 'user' has view-only access, 'viewer' can view and download)
+	// Backups routes (Session authenticated; team role 'user' has view-only access, 'admin' with view can download)
 	r.Route("/api/v1/backups", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
 		r.Get("/", backupHandler.HandleList)
 		r.Get("/{id}", backupHandler.HandleGet)
-		r.With(handler.RequireAdminOrViewer).Post("/{id}/download-link", backupHandler.HandleCreateDownloadLink)
+		r.With(handler.RequireAdminWithView).Post("/{id}/download-link", backupHandler.HandleCreateDownloadLink)
 
 		r.Group(func(r chi.Router) {
-			r.Use(handler.RequireAdmin)
-			r.Delete("/{id}", backupHandler.HandleDelete) // Manual delete (requires 2FA and Admin)
+			r.Use(handler.RequireAdminWithDelete)
+			r.Delete("/{id}", backupHandler.HandleDelete) // Manual delete (requires 2FA and Admin with delete permission)
 		})
 	})
 
-	// Team User management routes (Viewer can list, Admin can create/modify/delete)
+	// Team User management routes (Admin with view can list, Admin with edit can create/modify, Admin with delete can remove)
 	r.Route("/api/v1/users", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
-		r.With(handler.RequireAdminOrViewer).Get("/", authHandler.HandleListUsers)
+		r.With(handler.RequireAdminWithView).Get("/", authHandler.HandleListUsers)
 
 		r.Group(func(r chi.Router) {
-			r.Use(handler.RequireAdmin)
+			r.Use(handler.RequireAdminWithEdit)
 			r.Post("/", authHandler.HandleCreateUser)
-			r.Delete("/{id}", authHandler.HandleDeleteUser)
 			r.Put("/{id}/password", authHandler.HandleResetUserPassword)
 			r.Put("/{id}/quota", authHandler.HandleUpdateQuota)
+			r.Put("/{id}/permissions", authHandler.HandleUpdateUserPermissions)
 		})
+		r.With(handler.RequireAdminWithDelete).Delete("/{id}", authHandler.HandleDeleteUser)
 	})
 
 	// Drive routes (Google Drive-like personal storage, Session authenticated)
@@ -243,15 +244,15 @@ func main() {
 
 	r.Route("/api/v1/audit", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
-		r.Use(handler.RequireAdminOrViewer)
+		r.Use(handler.RequireAdminWithView)
 		r.Get("/", statsHandler.HandleGetAudit)
 	})
 
-	// Retention manual trigger / dry-run & history (Admin only for trigger, Viewer can see runs)
+	// Retention manual trigger / dry-run & history (Admin with edit can trigger, Admin with view can see runs)
 	r.Route("/api/v1/retention", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
 		r.Group(func(r chi.Router) {
-			r.Use(handler.RequireAdmin)
+			r.Use(handler.RequireAdminWithEdit)
 			r.Post("/trigger", func(w http.ResponseWriter, r *http.Request) {
 				isDryRun := r.URL.Query().Get("dry_run") == "true"
 				run, err := retentionMgr.Run(r.Context(), time.Now(), isDryRun)
@@ -262,7 +263,7 @@ func main() {
 				handler.WriteJSON(w, http.StatusOK, run)
 			})
 		})
-		r.With(handler.RequireAdminOrViewer).Get("/runs", func(w http.ResponseWriter, r *http.Request) {
+		r.With(handler.RequireAdminWithView).Get("/runs", func(w http.ResponseWriter, r *http.Request) {
 			rows, err := db.Pool.Query(r.Context(), `
 				SELECT id, triggered_at, completed_at, items_quarantined, items_deleted, bytes_freed, is_dry_run, status, log_details
 				FROM retention_runs

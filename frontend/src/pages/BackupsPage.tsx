@@ -12,8 +12,9 @@ import {
 export const BackupsPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const isViewer = user?.role === 'viewer';
-  const canDownload = isAdmin || isViewer;
+  const isReadOnlyAdmin = isAdmin && (!user?.can_edit && !user?.can_delete);
+  const canDownload = isAdmin && user?.can_view !== false;
+  const canDelete = isAdmin && user?.can_delete !== false;
   const queryClient = useQueryClient();
 
   // Filters state
@@ -122,10 +123,10 @@ export const BackupsPage: React.FC = () => {
             Semua snapshot backup terenkripsi yang tersimpan di InMeet Cloud
           </p>
         </div>
-        {!isAdmin && (
+        {(!isAdmin || !canDelete) && (
           <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-[#FEA82F]/20 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FEA82F] border border-[#FEA82F]/40 dark:border-[#1E3E62]">
             <Eye className="h-3.5 w-3.5" />
-            <span>{isViewer ? 'Mode: Administrator Hanya-Lihat (Read-Only)' : 'Mode Akses: Hanya Lihat (Read-Only)'}</span>
+            <span>{isReadOnlyAdmin ? 'Mode: Administrator Hanya-Lihat (Read-Only)' : 'Mode Akses: Hanya Lihat (Read-Only)'}</span>
           </div>
         )}
       </div>
@@ -285,7 +286,7 @@ export const BackupsPage: React.FC = () => {
                         <Download className="h-4 w-4" />
                       </button>
                     )}
-                    {isAdmin && (
+                    {canDelete && (
                       <button
                         onClick={() => {
                           setDeleteTarget(b);
@@ -376,7 +377,7 @@ export const BackupsPage: React.FC = () => {
                       <Download className="h-4.5 w-4.5 text-white" />
                     </button>
                   )}
-                  {isAdmin && (
+                  {canDelete && (
                     <button
                       onClick={() => setDeleteTarget(b)}
                       className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"

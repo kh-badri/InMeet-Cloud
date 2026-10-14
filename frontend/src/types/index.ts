@@ -1,9 +1,12 @@
-export type Role = 'admin' | 'viewer' | 'user';
+export type Role = 'admin' | 'user';
 
 export interface User {
   id: string;
   email: string;
   role: Role;
+  can_view?: boolean;
+  can_edit?: boolean;
+  can_delete?: boolean;
   storage_quota_bytes?: number;
   storage_used_bytes?: number;
   totp_enabled: boolean;
