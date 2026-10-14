@@ -111,13 +111,21 @@ export const BackupsPage: React.FC = () => {
   return (
     <div className="space-y-6 pb-16 md:pb-6">
       {/* Page Title */}
-      <div>
-        <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl">
-          Daftar File Backup
-        </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Semua snapshot backup terenkripsi yang tersimpan di InMeet Cloud
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl">
+            Daftar File Backup
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Semua snapshot backup terenkripsi yang tersimpan di InMeet Cloud
+          </p>
+        </div>
+        {!isAdmin && (
+          <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-[#FEA82F]/20 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FEA82F] border border-[#FEA82F]/40 dark:border-[#1E3E62]">
+            <Eye className="h-3.5 w-3.5" />
+            <span>Mode Akses: Hanya Lihat (Read-Only)</span>
+          </div>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -265,25 +273,27 @@ export const BackupsPage: React.FC = () => {
                     >
                       <Eye className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => handleDownload(b)}
-                      disabled={downloadingId === b.id}
-                      title="Unduh File"
-                      className="rounded-lg p-2 text-[#FF6701] hover:bg-[#FF6701]/10 dark:text-[#FF6500] dark:hover:bg-[#1E3E62] transition-colors"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
                     {isAdmin && (
-                      <button
-                        onClick={() => {
-                          setDeleteTarget(b);
-                          setDeleteError(null);
-                        }}
-                        title="Hapus Backup (Memerlukan 2FA)"
-                        className="rounded-lg p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleDownload(b)}
+                          disabled={downloadingId === b.id}
+                          title="Unduh File"
+                          className="rounded-lg p-2 text-[#FF6701] hover:bg-[#FF6701]/10 dark:text-[#FF6500] dark:hover:bg-[#1E3E62] transition-colors"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteTarget(b);
+                            setDeleteError(null);
+                          }}
+                          title="Hapus Backup (Memerlukan 2FA)"
+                          className="rounded-lg p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
@@ -356,19 +366,21 @@ export const BackupsPage: React.FC = () => {
                   >
                     <Eye className="h-4.5 w-4.5" />
                   </button>
-                  <button
-                    onClick={() => handleDownload(b)}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF6701] text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-2xs"
-                  >
-                    <Download className="h-4.5 w-4.5 text-white" />
-                  </button>
                   {isAdmin && (
-                    <button
-                      onClick={() => setDeleteTarget(b)}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
-                    >
-                      <Trash2 className="h-4.5 w-4.5" />
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleDownload(b)}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF6701] text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-2xs"
+                      >
+                        <Download className="h-4.5 w-4.5 text-white" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(b)}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
+                      >
+                        <Trash2 className="h-4.5 w-4.5" />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -421,12 +433,18 @@ export const BackupsPage: React.FC = () => {
             </div>
 
             <div className="pt-4 border-t border-[#92B4EC]/30 dark:border-[#1E3E62] flex justify-end">
-              <button
-                onClick={() => handleDownload(detailBackup)}
-                className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all shadow-sm"
-              >
-                <Download className="h-4 w-4 text-white" /> Unduh File Sekarang
-              </button>
+              {isAdmin ? (
+                <button
+                  onClick={() => handleDownload(detailBackup)}
+                  className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all shadow-sm"
+                >
+                  <Download className="h-4 w-4 text-white" /> Unduh File Sekarang
+                </button>
+              ) : (
+                <span className="text-[11px] text-slate-400 italic">
+                  Akun Anda dalam mode Hanya-Lihat (Read-Only). Pengunduhan file arsip hanya dapat dilakukan oleh Administrator.
+                </span>
+              )}
             </div>
           </div>
         )}

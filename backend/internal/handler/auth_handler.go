@@ -5,8 +5,12 @@ import (
 	"net/http"
 
 	"backupvault/internal/config"
+	"backupvault/internal/model"
 	"backupvault/internal/security"
 	"backupvault/internal/service"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -19,6 +23,17 @@ func NewAuthHandler(cfg *config.Config, authService *service.AuthService) *AuthH
 		cfg:         cfg,
 		authService: authService,
 	}
+}
+
+type CreateUserRequest struct {
+	Email             string `json:"email"`
+	Password          string `json:"password"`
+	Role              string `json:"role"`
+	StorageQuotaBytes int64  `json:"storage_quota_bytes"`
+}
+
+type ResetPasswordRequest struct {
+	NewPassword string `json:"new_password"`
 }
 
 type LoginRequest struct {
@@ -243,6 +258,92 @@ func (h *AuthHandler) HandleUpdateProfile(w http.ResponseWriter, r *http.Request
 		"message": "profil berhasil diperbarui",
 		"user":    updatedUser,
 	})
+}
+
+func (h *AuthHandler) HandleListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.authService.ListTeamUsers(r.Context())
+	if err != nil {
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	WriteJSON(w, http.StatusOK, users)
+}
+
+func (h *AuthHandler) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
+	admin := GetCurrentUser(r.Context())
+	if admin == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	role := model.RoleUser
+	if req.Role != "" {
+		role = model.Role(req.Role)
+	}
+
+	newUser, err := h.authService.CreateTeamUser(r.Context(), admin.ID, req.Email, req.Password, role, req.StorageQuotaBytes)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusCreated, newUser)
+}
+
+func (h *AuthHandler) HandleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	admin := GetCurrentUser(r.Context())
+	if admin == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	targetIDStr := chi.URLParam(r, "id")
+	targetID, err := uuid.Parse(targetIDStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	if err := h.authService.DeleteTeamUser(r.Context(), admin.ID, targetID); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "anggota tim berhasil dihapus"})
+}
+
+func (h *AuthHandler) HandleResetUserPassword(w http.ResponseWriter, r *http.Request) {
+	admin := GetCurrentUser(r.Context())
+	if admin == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	targetIDStr := chi.URLParam(r, "id")
+	targetID, err := uuid.Parse(targetIDStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	var req ResetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.authService.ResetTeamUserPassword(r.Context(), admin.ID, targetID, req.NewPassword); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "password anggota tim berhasil direset"})
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data interface{}) {

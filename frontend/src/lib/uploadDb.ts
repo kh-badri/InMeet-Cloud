@@ -17,7 +17,7 @@ export interface StoredUploadTask {
   uploadedChunks?: number[];
   parentFolderId: string | null;
   parentFolderName?: string;
-  status: 'uploading' | 'paused' | 'completed' | 'error';
+  status: 'queued' | 'uploading' | 'paused' | 'completed' | 'error';
   errorMessage?: string;
   updatedAt: number;
 }

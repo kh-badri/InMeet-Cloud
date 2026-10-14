@@ -11,18 +11,21 @@ type Role string
 const (
 	RoleAdmin  Role = "admin"
 	RoleViewer Role = "viewer"
+	RoleUser   Role = "user"
 )
 
 type User struct {
-	ID            uuid.UUID `json:"id"`
-	Email         string    `json:"email"`
-	PasswordHash  string    `json:"-"`
-	Role          Role      `json:"role"`
-	TOTPSecret    *string   `json:"-"`
-	TOTPEnabled   bool      `json:"totp_enabled"`
-	RecoveryCodes []string  `json:"-"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID                uuid.UUID `json:"id"`
+	Email             string    `json:"email"`
+	PasswordHash      string    `json:"-"`
+	Role              Role      `json:"role"`
+	StorageQuotaBytes int64     `json:"storage_quota_bytes"`
+	StorageUsedBytes  int64     `json:"storage_used_bytes,omitempty"`
+	TOTPSecret        *string   `json:"-"`
+	TOTPEnabled       bool      `json:"totp_enabled"`
+	RecoveryCodes     []string  `json:"-"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type Session struct {
@@ -209,11 +212,13 @@ type DriveBreadcrumb struct {
 }
 
 type DriveListResponse struct {
-	Items         []*DriveItem      `json:"items"`
-	CurrentFolder *DriveItem        `json:"current_folder,omitempty"`
-	Breadcrumbs   []DriveBreadcrumb `json:"breadcrumbs"`
-	TotalItems    int               `json:"total_items"`
-	TotalBytes    int64             `json:"total_bytes"`
+	Items             []*DriveItem      `json:"items"`
+	CurrentFolder     *DriveItem        `json:"current_folder,omitempty"`
+	Breadcrumbs       []DriveBreadcrumb `json:"breadcrumbs"`
+	TotalItems        int               `json:"total_items"`
+	TotalBytes        int64             `json:"total_bytes"`
+	StorageQuotaBytes int64             `json:"storage_quota_bytes"`
+	StorageUsedBytes  int64             `json:"storage_used_bytes"`
 }
 
 type MoveDriveItemRequest struct {

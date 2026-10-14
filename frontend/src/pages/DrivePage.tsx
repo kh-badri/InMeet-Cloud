@@ -452,17 +452,42 @@ export const DrivePage: React.FC = () => {
                   {activeTab === 'trash' ? 'KARANTINA 7 HARI' : 'PERSONAL STORAGE'}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {activeTab === 'trash'
-                  ? trashData
-                    ? `${trashData.items.length} item dalam karantina (${formatBytes(
-                        trashData.items.reduce((acc, i) => acc + (i.size_bytes || 0), 0)
-                      )})`
-                    : 'Memuat data sampah...'
-                  : data
-                  ? `${data.total_items} item tersimpan (${formatBytes(data.total_bytes)})`
-                  : 'Memuat data...'}
-              </p>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {activeTab === 'trash'
+                    ? trashData
+                      ? `${trashData.items.length} item dalam karantina (${formatBytes(
+                          trashData.items.reduce((acc, i) => acc + (i.size_bytes || 0), 0)
+                        )})`
+                      : 'Memuat data sampah...'
+                    : data
+                    ? `${data.total_items} item tersimpan`
+                    : 'Memuat data...'}
+                </p>
+
+                {activeTab === 'drive' && data?.storage_quota_bytes && data.storage_quota_bytes > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                      Kuota: <strong className="text-[#FF6701] dark:text-[#FEA82F]">{formatBytes(data.storage_used_bytes || data.total_bytes)}</strong> / {formatBytes(data.storage_quota_bytes)}
+                    </span>
+                    <div className="w-20 h-1.5 rounded-full bg-[#92B4EC]/30 dark:bg-[#000000] overflow-hidden">
+                      <div
+                        className="h-full bg-[#FF6701] dark:bg-[#FF6500]"
+                        style={{
+                          width: `${Math.min(100, Math.round(((data.storage_used_bytes || data.total_bytes) / data.storage_quota_bytes) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      ({Math.round(((data.storage_used_bytes || data.total_bytes) / data.storage_quota_bytes) * 100)}%)
+                    </span>
+                  </div>
+                ) : activeTab === 'drive' && data ? (
+                  <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                    ({formatBytes(data.total_bytes)}) · <span className="text-emerald-500 font-bold">Unlimited (Admin)</span>
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
 

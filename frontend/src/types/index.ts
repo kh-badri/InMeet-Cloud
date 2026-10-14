@@ -1,9 +1,11 @@
-export type Role = 'admin' | 'viewer';
+export type Role = 'admin' | 'viewer' | 'user';
 
 export interface User {
   id: string;
   email: string;
   role: Role;
+  storage_quota_bytes?: number;
+  storage_used_bytes?: number;
   totp_enabled: boolean;
   created_at: string;
 }
@@ -120,6 +122,8 @@ export interface DriveListResponse {
   breadcrumbs: DriveBreadcrumb[];
   total_items: number;
   total_bytes: number;
+  storage_quota_bytes?: number;
+  storage_used_bytes?: number;
 }
 
 export interface DriveFolderTreeItem {

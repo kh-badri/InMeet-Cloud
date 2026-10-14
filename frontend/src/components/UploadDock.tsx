@@ -23,8 +23,9 @@ export const UploadDock: React.FC = () => {
   if (tasks.length === 0) return null;
 
   const uploadingCount = tasks.filter((t) => t.status === 'uploading').length;
+  const queuedCount = tasks.filter((t) => t.status === 'queued').length;
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
-  const activeOrPausedCount = tasks.filter((t) => t.status === 'uploading' || t.status === 'paused' || t.status === 'error').length;
+  const activeOrPausedCount = tasks.filter((t) => t.status === 'uploading' || t.status === 'queued' || t.status === 'paused' || t.status === 'error').length;
   const totalCount = tasks.length;
 
   const formatEta = (seconds: number) => {
@@ -62,7 +63,11 @@ export const UploadDock: React.FC = () => {
           </div>
           <div>
             <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-              {uploadingCount > 0 ? `Mengunggah ${uploadingCount} berkas...` : 'Status Upload'}
+              {uploadingCount > 0
+                ? `Mengunggah ${uploadingCount} berkas${queuedCount > 0 ? ` (${queuedCount} antre)` : ''}...`
+                : queuedCount > 0
+                ? `Menyiapkan ${queuedCount} berkas antre...`
+                : 'Status Upload'}
             </h4>
             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
               {completedCount} dari {totalCount} selesai
@@ -134,6 +139,17 @@ export const UploadDock: React.FC = () => {
                       <span className="text-rose-500" title={task.errorMessage || 'Upload gagal'}>
                         <AlertCircle className="h-4 w-4" />
                       </span>
+                    )}
+
+                    {task.status === 'queued' && (
+                      <button
+                        onClick={() => cancelUpload(task.id)}
+                        title="Batalkan berkas dari antrean"
+                        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        <span>Batal</span>
+                      </button>
                     )}
 
                     {task.status === 'uploading' && (
@@ -241,9 +257,11 @@ export const UploadDock: React.FC = () => {
                         ? 'bg-rose-500'
                         : task.status === 'paused'
                         ? 'bg-[#FEA82F]'
+                        : task.status === 'queued'
+                        ? 'bg-slate-300 dark:bg-slate-700'
                         : 'bg-[#FF6701] dark:bg-[#FF6500]'
                     }`}
-                    style={{ width: `${task.progressPercent}%` }}
+                    style={{ width: `${task.status === 'queued' ? 0 : task.progressPercent}%` }}
                   />
                 </div>
 
@@ -252,6 +270,10 @@ export const UploadDock: React.FC = () => {
                   <span>
                     {formatBytes(task.uploadedBytes)} / {formatBytes(task.totalBytes)} ({task.progressPercent}%)
                   </span>
+
+                  {task.status === 'queued' && (
+                    <span className="font-bold text-slate-400 dark:text-slate-500">Menunggu antrean...</span>
+                  )}
 
                   {task.status === 'uploading' && (
                     <div className="flex items-center gap-2">

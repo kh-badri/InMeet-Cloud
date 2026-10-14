@@ -98,7 +98,7 @@ func main() {
 	appService := service.NewAppService(appRepo, apiKeyRepo, auditRepo)
 	uploadService := service.NewUploadService(localStorage, uploadRepo, backupRepo, auditRepo)
 	backupService := service.NewBackupService(localStorage, backupRepo, tokenRepo, auditRepo, authService)
-	driveService := service.NewDriveService(driveRepo, cfg.DriveStoragePath, auditRepo)
+	driveService := service.NewDriveService(driveRepo, cfg.DriveStoragePath, auditRepo, userRepo)
 	cronScheduler.SetDriveTrashPurger(driveService)
 
 	// 8. Initialize handlers
@@ -129,9 +129,9 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	// Rate limiters: general API 300/min burst 60, auth endpoints 30/min burst 10
-	apiLimiter := security.NewIPRateLimiter(300, 60)
-	authLimiter := security.NewIPRateLimiter(30, 10)
+	// Rate limiters: general API 3000/min burst 500, auth endpoints 60/min burst 20
+	apiLimiter := security.NewIPRateLimiter(3000, 500)
+	authLimiter := security.NewIPRateLimiter(60, 20)
 	r.Use(security.RateLimitMiddleware(apiLimiter))
 
 	r.Use(handler.AuthMiddleware(authService))
@@ -186,13 +186,27 @@ func main() {
 		})
 	})
 
-	// Backups routes (Session authenticated)
+	// Backups routes (Session authenticated; team role 'user' has view-only access)
 	r.Route("/api/v1/backups", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
 		r.Get("/", backupHandler.HandleList)
 		r.Get("/{id}", backupHandler.HandleGet)
-		r.Post("/{id}/download-link", backupHandler.HandleCreateDownloadLink)
-		r.Delete("/{id}", backupHandler.HandleDelete) // Manual delete (requires 2FA)
+
+		r.Group(func(r chi.Router) {
+			r.Use(handler.RequireAdmin)
+			r.Post("/{id}/download-link", backupHandler.HandleCreateDownloadLink)
+			r.Delete("/{id}", backupHandler.HandleDelete) // Manual delete (requires 2FA and Admin)
+		})
+	})
+
+	// Team User management routes (Admin only)
+	r.Route("/api/v1/users", func(r chi.Router) {
+		r.Use(handler.RequireAuth)
+		r.Use(handler.RequireAdmin)
+		r.Get("/", authHandler.HandleListUsers)
+		r.Post("/", authHandler.HandleCreateUser)
+		r.Delete("/{id}", authHandler.HandleDeleteUser)
+		r.Put("/{id}/password", authHandler.HandleResetUserPassword)
 	})
 
 	// Drive routes (Google Drive-like personal storage, Session authenticated)

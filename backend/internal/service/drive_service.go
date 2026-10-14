@@ -30,15 +30,30 @@ type DriveService struct {
 	repo      *repository.DriveRepository
 	baseDir   string
 	auditRepo *repository.AuditRepository
+	userRepo  *repository.UserRepository
 }
 
-func NewDriveService(repo *repository.DriveRepository, baseDir string, auditRepo *repository.AuditRepository) *DriveService {
+func NewDriveService(repo *repository.DriveRepository, baseDir string, auditRepo *repository.AuditRepository, userRepo *repository.UserRepository) *DriveService {
 	_ = os.MkdirAll(baseDir, 0750)
 	return &DriveService{
 		repo:      repo,
 		baseDir:   filepath.Clean(baseDir),
 		auditRepo: auditRepo,
+		userRepo:  userRepo,
 	}
+}
+
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
 func (s *DriveService) LogAudit(ctx context.Context, userID uuid.UUID, action, targetID string, details map[string]interface{}) {
@@ -74,12 +89,22 @@ func (s *DriveService) ListItems(ctx context.Context, userID uuid.UUID, parentID
 		totalBytes = 0
 	}
 
+	var quotaBytes int64 = 0
+	if s.userRepo != nil {
+		u, err := s.userRepo.GetByID(ctx, userID)
+		if err == nil && u != nil {
+			quotaBytes = u.StorageQuotaBytes
+		}
+	}
+
 	return &model.DriveListResponse{
-		Items:         items,
-		CurrentFolder: currentFolder,
-		Breadcrumbs:   breadcrumbs,
-		TotalItems:    totalItems,
-		TotalBytes:    totalBytes,
+		Items:             items,
+		CurrentFolder:     currentFolder,
+		Breadcrumbs:       breadcrumbs,
+		TotalItems:        totalItems,
+		TotalBytes:        totalBytes,
+		StorageQuotaBytes: quotaBytes,
+		StorageUsedBytes:  totalBytes,
 	}, nil
 }
 
@@ -143,6 +168,17 @@ func (s *DriveService) UploadFile(
 	size int64,
 	mimeType string,
 ) (*model.DriveItem, error) {
+	// Check user storage quota (e.g. 15GB for role user)
+	if s.userRepo != nil && size > 0 {
+		user, err := s.userRepo.GetByID(ctx, userID)
+		if err == nil && user != nil && user.StorageQuotaBytes > 0 {
+			_, usedBytes, _ := s.repo.GetStats(ctx, userID)
+			if usedBytes+size > user.StorageQuotaBytes {
+				return nil, fmt.Errorf("kapasitas penyimpanan Drive Anda telah melebihi kuota (%s). Sisa ruang tidak mencukupi untuk berkas berukuran %s", formatBytes(user.StorageQuotaBytes), formatBytes(size))
+			}
+		}
+	}
+
 	effectiveParentID := initialParentID
 	targetFilename := filename
 
@@ -501,6 +537,17 @@ func (s *DriveService) ListAllFolders(ctx context.Context, userID uuid.UUID) ([]
 func (s *DriveService) InitUploadSession(ctx context.Context, userID uuid.UUID, req *model.InitUploadRequest) (*model.InitUploadResponse, error) {
 	if req.TotalBytes <= 0 {
 		return nil, errors.New("ukuran berkas harus lebih besar dari 0")
+	}
+
+	// Check user storage quota (e.g. 15GB for role user)
+	if s.userRepo != nil && req.TotalBytes > 0 {
+		user, err := s.userRepo.GetByID(ctx, userID)
+		if err == nil && user != nil && user.StorageQuotaBytes > 0 {
+			_, usedBytes, _ := s.repo.GetStats(ctx, userID)
+			if usedBytes+req.TotalBytes > user.StorageQuotaBytes {
+				return nil, fmt.Errorf("kapasitas penyimpanan Drive Anda telah melebihi kuota (%s). Sisa ruang tidak mencukupi untuk berkas berukuran %s", formatBytes(user.StorageQuotaBytes), formatBytes(req.TotalBytes))
+			}
+		}
 	}
 
 	chunkSize := req.ChunkSize

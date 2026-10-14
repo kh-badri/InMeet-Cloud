@@ -43,7 +43,9 @@ export async function apiRequest<T = any>(
 
   if (!response.ok) {
     const errorMsg = data?.error || `HTTP ${response.status}: ${response.statusText}`;
-    throw new Error(errorMsg);
+    const error: any = new Error(errorMsg);
+    error.status = response.status;
+    throw error;
   }
 
   return data as T;

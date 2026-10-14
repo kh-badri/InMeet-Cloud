@@ -418,3 +418,105 @@ func (s *AuthService) UpdateEmail(ctx context.Context, userID uuid.UUID, newEmai
 
 	return user, nil
 }
+
+func (s *AuthService) CreateTeamUser(ctx context.Context, adminID uuid.UUID, email, password string, role model.Role, quotaBytes int64) (*model.User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" || !strings.Contains(email, "@") {
+		return nil, errors.New("format email tidak valid")
+	}
+
+	if len(password) < 8 {
+		return nil, errors.New("password minimal 8 karakter")
+	}
+
+	if role == "" {
+		role = model.RoleUser
+	}
+	if role != model.RoleUser && role != model.RoleViewer {
+		return nil, errors.New("hanya dapat membuat peran user atau viewer untuk tim")
+	}
+
+	if quotaBytes <= 0 {
+		quotaBytes = 16106127360 // 15 GB
+	}
+
+	// Check if already used
+	existing, err := s.userRepo.GetByEmail(ctx, email)
+	if err == nil && existing != nil && strings.EqualFold(existing.Email, email) {
+		return nil, errors.New("email sudah terdaftar dalam sistem")
+	}
+
+	hash, err := security.HashPassword(password)
+	if err != nil {
+		return nil, fmt.Errorf("gagal mengenkripsi password: %w", err)
+	}
+
+	user, err := s.userRepo.CreateUser(ctx, email, hash, role, quotaBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	s.auditRepo.LogCtx(ctx, "user", adminID.String(), "team_user_created", "auth", user.ID.String(), map[string]interface{}{
+		"email":               email,
+		"role":                role,
+		"storage_quota_bytes": quotaBytes,
+	})
+
+	return user, nil
+}
+
+func (s *AuthService) ListTeamUsers(ctx context.Context) ([]*model.User, error) {
+	return s.userRepo.ListUsers(ctx)
+}
+
+func (s *AuthService) DeleteTeamUser(ctx context.Context, adminID, targetUserID uuid.UUID) error {
+	if adminID == targetUserID {
+		return errors.New("tidak dapat menghapus akun Anda sendiri")
+	}
+
+	target, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+
+	if target.Role == model.RoleAdmin {
+		return errors.New("tidak dapat menghapus akun administrator")
+	}
+
+	if err := s.userRepo.DeleteUser(ctx, targetUserID); err != nil {
+		return err
+	}
+
+	s.auditRepo.LogCtx(ctx, "user", adminID.String(), "team_user_deleted", "auth", targetUserID.String(), map[string]interface{}{
+		"email": target.Email,
+		"role":  target.Role,
+	})
+
+	return nil
+}
+
+func (s *AuthService) ResetTeamUserPassword(ctx context.Context, adminID, targetUserID uuid.UUID, newPassword string) error {
+	if len(newPassword) < 8 {
+		return errors.New("password baru minimal 8 karakter")
+	}
+
+	target, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+
+	hash, err := security.HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("gagal mengenkripsi password: %w", err)
+	}
+
+	if err := s.userRepo.UpdatePassword(ctx, targetUserID, hash); err != nil {
+		return err
+	}
+
+	s.auditRepo.LogCtx(ctx, "user", adminID.String(), "team_user_password_reset", "auth", targetUserID.String(), map[string]interface{}{
+		"email": target.Email,
+	})
+
+	return nil
+}
