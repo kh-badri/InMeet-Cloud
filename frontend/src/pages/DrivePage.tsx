@@ -13,7 +13,7 @@ import {
   Grid, List, Trash2, Download, Edit3, ChevronRight,
   ArrowLeft, Home, RefreshCw, Eye, HardDrive,
   FolderArchive, Check, AlertCircle, FolderSymlink, MoveRight,
-  RotateCcw, Clock, AlertTriangle, Share2, MessageSquare, Users
+  RotateCcw, Clock, AlertTriangle, Share2, MessageSquare, Users, MoreVertical
 } from 'lucide-react';
 
 interface HierarchicalFolder {
@@ -92,6 +92,32 @@ export const DrivePage: React.FC = () => {
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
   const [shareTarget, setShareTarget] = useState<DriveItem | null>(null);
   const [commentsTarget, setCommentsTarget] = useState<DriveItem | null>(null);
+
+  // 3-dots actions menu dropdown state
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenuId(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveMenuId(null);
+      }
+    };
+
+    if (activeMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeMenuId]);
 
   // Upload state
   const [isDragOver, setIsDragOver] = useState(false);
@@ -1307,117 +1333,178 @@ export const DrivePage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {folders.map((folder) => (
-                  <div
-                    key={folder.id}
-                    onDoubleClick={() => setCurrentFolderId(folder.id)}
-                    className="group relative flex items-center justify-between p-3.5 rounded-2xl border border-[#92B4EC] bg-white hover:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500] transition-colors cursor-pointer shadow-xs"
-                  >
+                {folders.map((folder) => {
+                  const isMenuOpen = activeMenuId === folder.id;
+                  return (
                     <div
+                      key={folder.id}
                       onClick={() => setCurrentFolderId(folder.id)}
-                      className="flex items-center gap-3 min-w-0 flex-1 pr-2"
+                      className={`group relative flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer shadow-xs ${
+                        isMenuOpen
+                          ? 'border-[#FF6701] bg-orange-50/30 ring-1 ring-[#FF6701]/30 dark:border-[#FF6500] dark:bg-[#1E3E62]/40'
+                          : 'border-slate-200 bg-white hover:border-[#FF6701] hover:shadow-md dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500]'
+                      }`}
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FEA82F]/20 dark:bg-[#1E3E62]">
-                        <Folder className="h-5 w-5 text-[#FF6701] dark:text-[#FF6500]" fill="currentColor" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate" title={folder.name}>
-                          {folder.name}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[8.5px] font-mono font-bold bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white leading-none shadow-2xs">
-                            <HardDrive className="h-2 w-2 text-white shrink-0" />
-                            {formatBytes(folder.size_bytes)}
-                          </span>
-                          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
-                            {folder.item_count !== undefined ? `${folder.item_count} item` : '0 item'}
-                          </span>
-                          {isAdminOrViewer && filterUserId === 'all' && folder.owner_email && (
-                            <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[110px]" title={`Pemilik: ${folder.owner_email}`}>
-                              👤 {folder.owner_email.split('@')[0]}
+                      {/* Left: Folder Icon & Details */}
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FEA82F]/15 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] group-hover:scale-105 transition-transform">
+                          <Folder className="h-6 w-6" fill="currentColor" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p
+                              className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate"
+                              title={folder.name}
+                            >
+                              {folder.name}
+                            </p>
+                            {folder.comments_count && folder.comments_count > 0 ? (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCommentsTarget(folder);
+                                }}
+                                title={`${folder.comments_count} komentar`}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-orange-100 text-[#FF6701] dark:bg-orange-950/60 dark:text-orange-300 text-[9px] font-bold shrink-0 hover:scale-105 transition-transform"
+                              >
+                                <MessageSquare className="h-2.5 w-2.5" />
+                                <span>{folder.comments_count}</span>
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            <span className="font-medium shrink-0">
+                              {folder.item_count !== undefined ? `${folder.item_count} item` : '0 item'}
                             </span>
-                          )}
+                            <span className="text-slate-300 dark:text-slate-600 shrink-0">•</span>
+                            <span className="font-mono text-[10px] shrink-0 text-[#FF6701] dark:text-[#FEA82F] font-semibold">
+                              {formatBytes(folder.size_bytes)}
+                            </span>
+                            {isAdminOrViewer && filterUserId === 'all' && folder.owner_email && (
+                              <>
+                                <span className="text-slate-300 dark:text-slate-600 shrink-0">•</span>
+                                <span
+                                  className="font-mono text-[10px] text-slate-400 dark:text-slate-500 truncate"
+                                  title={`Pemilik: ${folder.owner_email}`}
+                                >
+                                  👤 {folder.owner_email.split('@')[0]}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Actions Menu */}
-                    <div className="flex items-center gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShareTarget(folder);
-                        }}
-                        title="Bagikan Folder"
-                        className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
-                      >
-                        <Share2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCommentsTarget(folder);
-                        }}
-                        title="Komentar Folder"
-                        className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
-                      >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        {folder.comments_count && folder.comments_count > 0 ? (
-                          <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
-                            {folder.comments_count}
-                          </span>
-                        ) : null}
-                      </button>
-                      {canEdit && (
+                      {/* Right: 3-dots Menu Button & Popover */}
+                      <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openMoveModal(folder);
-                          }}
-                          title="Pindahkan Folder"
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                          type="button"
+                          onClick={() => setActiveMenuId(isMenuOpen ? null : folder.id)}
+                          title="Aksi folder"
+                          className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
+                            isMenuOpen
+                              ? 'bg-[#FF6701] text-white shadow-xs'
+                              : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-[#1E3E62]'
+                          }`}
                         >
-                          <FolderSymlink className="h-3.5 w-3.5" />
+                          <MoreVertical className="h-4 w-4" />
                         </button>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownload(folder);
-                        }}
-                        title="Download ZIP"
-                        className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                      </button>
-                      {canEdit && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRenameTarget(folder);
-                            setNewName(folder.name);
-                          }}
-                          title="Ganti Nama"
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteTarget(folder);
-                          }}
-                          title="Hapus"
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
+
+                        {/* Dropdown Menu Popover */}
+                        {isMenuOpen && (
+                          <div
+                            ref={menuRef}
+                            className="absolute right-0 top-full mt-1.5 z-40 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#1E3E62] dark:bg-[#0B192C] text-xs text-left animate-in fade-in zoom-in-95"
+                          >
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                setShareTarget(folder);
+                              }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-orange-50 hover:text-[#FF6701] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                            >
+                              <Share2 className="h-4 w-4 text-[#FF6701]" />
+                              <span>Bagikan Folder</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                setCommentsTarget(folder);
+                              }}
+                              className="w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-orange-50 hover:text-[#FF6701] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <MessageSquare className="h-4 w-4 text-amber-500" />
+                                <span>Komentar</span>
+                              </div>
+                              {folder.comments_count && folder.comments_count > 0 ? (
+                                <span className="px-1.5 py-0.2 rounded-full bg-[#FF6701] text-white text-[9px] font-bold">
+                                  {folder.comments_count}
+                                </span>
+                              ) : null}
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                handleDownload(folder);
+                              }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                            >
+                              <Download className="h-4 w-4 text-blue-500" />
+                              <span>Unduh Arsip ZIP</span>
+                            </button>
+
+                            {canEdit && (
+                              <button
+                                onClick={() => {
+                                  setActiveMenuId(null);
+                                  openMoveModal(folder);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                              >
+                                <FolderSymlink className="h-4 w-4 text-indigo-500" />
+                                <span>Pindahkan Folder</span>
+                              </button>
+                            )}
+
+                            {canEdit && (
+                              <button
+                                onClick={() => {
+                                  setActiveMenuId(null);
+                                  setRenameTarget(folder);
+                                  setNewName(folder.name);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                              >
+                                <Edit3 className="h-4 w-4 text-emerald-500" />
+                                <span>Ganti Nama</span>
+                              </button>
+                            )}
+
+                            {canDelete && (
+                              <>
+                                <div className="my-1 border-t border-slate-100 dark:border-[#1E3E62]/60" />
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    setDeleteTarget(folder);
+                                  }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span>Hapus Folder</span>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1483,63 +1570,129 @@ export const DrivePage: React.FC = () => {
                       </div>
 
                       {/* Card Actions */}
-                      <div className="mt-3 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between">
-                        <button
-                          onClick={() => setShareTarget(file)}
-                          title="Bagikan Berkas"
-                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
-                        >
-                          <Share2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setCommentsTarget(file)}
-                          title="Komentar"
-                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
+                      <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-[#1E3E62]/60 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                            {formatBytes(file.size_bytes)}
+                          </span>
                           {file.comments_count && file.comments_count > 0 ? (
-                            <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
-                              {file.comments_count}
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCommentsTarget(file);
+                              }}
+                              title={`${file.comments_count} komentar`}
+                              className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full bg-orange-100 text-[#FF6701] dark:bg-orange-950/60 dark:text-orange-400 text-[8px] font-bold"
+                            >
+                              <MessageSquare className="h-2 w-2" />
+                              <span>{file.comments_count}</span>
                             </span>
                           ) : null}
-                        </button>
-                        {canEdit ? (
+                        </div>
+
+                        <div className="flex items-center gap-0.5">
                           <button
-                            onClick={() => openMoveModal(file)}
-                            title="Pindahkan Berkas"
-                            className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                            onClick={() => handleDownload(file)}
+                            title="Unduh"
+                            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-[#1E3E62] transition-colors"
                           >
-                            <FolderSymlink className="h-3.5 w-3.5" />
+                            <Download className="h-3.5 w-3.5" />
                           </button>
-                        ) : null}
-                        <button
-                          onClick={() => handleDownload(file)}
-                          title="Unduh"
-                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </button>
-                        {canEdit && (
-                          <button
-                            onClick={() => {
-                              setRenameTarget(file);
-                              setNewName(file.name);
-                            }}
-                            title="Ganti Nama"
-                            className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteTarget(file)}
-                            title="Hapus"
-                            className="p-1 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+
+                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setActiveMenuId(activeMenuId === file.id ? null : file.id)}
+                              title="Pilihan lainnya"
+                              className={`p-1 rounded-lg transition-colors ${
+                                activeMenuId === file.id
+                                  ? 'bg-[#FF6701] text-white'
+                                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-[#1E3E62]'
+                              }`}
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+
+                            {activeMenuId === file.id && (
+                              <div
+                                ref={menuRef}
+                                className="absolute right-0 bottom-full mb-1.5 z-40 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#1E3E62] dark:bg-[#0B192C] text-xs text-left animate-in fade-in zoom-in-95"
+                              >
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    setShareTarget(file);
+                                  }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-orange-50 hover:text-[#FF6701] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                >
+                                  <Share2 className="h-3.5 w-3.5 text-[#FF6701]" />
+                                  <span>Bagikan Berkas</span>
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    setCommentsTarget(file);
+                                  }}
+                                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-orange-50 hover:text-[#FF6701] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <MessageSquare className="h-3.5 w-3.5 text-amber-500" />
+                                    <span>Komentar</span>
+                                  </div>
+                                  {file.comments_count && file.comments_count > 0 ? (
+                                    <span className="px-1.5 py-0.2 rounded-full bg-[#FF6701] text-white text-[9px] font-bold">
+                                      {file.comments_count}
+                                    </span>
+                                  ) : null}
+                                </button>
+
+                                {canEdit && (
+                                  <button
+                                    onClick={() => {
+                                      setActiveMenuId(null);
+                                      openMoveModal(file);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                  >
+                                    <FolderSymlink className="h-3.5 w-3.5 text-indigo-500" />
+                                    <span>Pindahkan Berkas</span>
+                                  </button>
+                                )}
+
+                                {canEdit && (
+                                  <button
+                                    onClick={() => {
+                                      setActiveMenuId(null);
+                                      setRenameTarget(file);
+                                      setNewName(file.name);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                  >
+                                    <Edit3 className="h-3.5 w-3.5 text-emerald-500" />
+                                    <span>Ganti Nama</span>
+                                  </button>
+                                )}
+
+                                {canDelete && (
+                                  <>
+                                    <div className="my-1 border-t border-slate-100 dark:border-[#1E3E62]/60" />
+                                    <button
+                                      onClick={() => {
+                                        setActiveMenuId(null);
+                                        setDeleteTarget(file);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      <span>Hapus Berkas</span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1600,62 +1753,108 @@ export const DrivePage: React.FC = () => {
                           {formatDate(folder.created_at)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
                             <button
-                              onClick={() => setShareTarget(folder)}
-                              title="Bagikan Folder"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
+                              type="button"
+                              onClick={() => setActiveMenuId(activeMenuId === folder.id ? null : folder.id)}
+                              title="Aksi folder"
+                              className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
+                                activeMenuId === folder.id
+                                  ? 'bg-[#FF6701] text-white shadow-xs'
+                                  : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-[#1E3E62]'
+                              }`}
                             >
-                              <Share2 className="h-4 w-4" />
+                              <MoreVertical className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => setCommentsTarget(folder)}
-                              title="Komentar Folder"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
-                            >
-                              <MessageSquare className="h-4 w-4" />
-                              {folder.comments_count && folder.comments_count > 0 ? (
-                                <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
-                                  {folder.comments_count}
-                                </span>
-                              ) : null}
-                            </button>
-                            {canEdit && (
-                              <button
-                                onClick={() => openMoveModal(folder)}
-                                title="Pindahkan Folder"
-                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+
+                            {activeMenuId === folder.id && (
+                              <div
+                                ref={menuRef}
+                                className="absolute right-0 top-full mt-1.5 z-40 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#1E3E62] dark:bg-[#0B192C] text-xs text-left animate-in fade-in zoom-in-95"
                               >
-                                <FolderSymlink className="h-4 w-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDownload(folder)}
-                              title="Download ZIP"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                            >
-                              <Download className="h-4 w-4" />
-                            </button>
-                            {canEdit && (
-                              <button
-                                onClick={() => {
-                                  setRenameTarget(folder);
-                                  setNewName(folder.name);
-                                }}
-                                title="Ganti Nama"
-                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                              >
-                                <Edit3 className="h-4 w-4" />
-                              </button>
-                            )}
-                            {canDelete && (
-                              <button
-                                onClick={() => setDeleteTarget(folder)}
-                                title="Hapus"
-                                className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    setShareTarget(folder);
+                                  }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-orange-50 hover:text-[#FF6701] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                >
+                                  <Share2 className="h-4 w-4 text-[#FF6701]" />
+                                  <span>Bagikan Folder</span>
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    setCommentsTarget(folder);
+                                  }}
+                                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-orange-50 hover:text-[#FF6701] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <MessageSquare className="h-4 w-4 text-amber-500" />
+                                    <span>Komentar</span>
+                                  </div>
+                                  {folder.comments_count && folder.comments_count > 0 ? (
+                                    <span className="px-1.5 py-0.2 rounded-full bg-[#FF6701] text-white text-[9px] font-bold">
+                                      {folder.comments_count}
+                                    </span>
+                                  ) : null}
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    handleDownload(folder);
+                                  }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                >
+                                  <Download className="h-4 w-4 text-blue-500" />
+                                  <span>Unduh Arsip ZIP</span>
+                                </button>
+
+                                {canEdit && (
+                                  <button
+                                    onClick={() => {
+                                      setActiveMenuId(null);
+                                      openMoveModal(folder);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                  >
+                                    <FolderSymlink className="h-4 w-4 text-indigo-500" />
+                                    <span>Pindahkan Folder</span>
+                                  </button>
+                                )}
+
+                                {canEdit && (
+                                  <button
+                                    onClick={() => {
+                                      setActiveMenuId(null);
+                                      setRenameTarget(folder);
+                                      setNewName(folder.name);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                  >
+                                    <Edit3 className="h-4 w-4 text-emerald-500" />
+                                    <span>Ganti Nama</span>
+                                  </button>
+                                )}
+
+                                {canDelete && (
+                                  <>
+                                    <div className="my-1 border-t border-slate-100 dark:border-[#1E3E62]/60" />
+                                    <button
+                                      onClick={() => {
+                                        setActiveMenuId(null);
+                                        setDeleteTarget(folder);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      <span>Hapus Folder</span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
                         </td>
@@ -1698,25 +1897,6 @@ export const DrivePage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => setShareTarget(file)}
-                              title="Bagikan Berkas"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
-                            >
-                              <Share2 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => setCommentsTarget(file)}
-                              title="Komentar Berkas"
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
-                            >
-                              <MessageSquare className="h-4 w-4" />
-                              {file.comments_count && file.comments_count > 0 ? (
-                                <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
-                                  {file.comments_count}
-                                </span>
-                              ) : null}
-                            </button>
                             {isPreviewable(file) && (
                               <button
                                 onClick={() => setPreviewItem(file)}
@@ -1726,15 +1906,6 @@ export const DrivePage: React.FC = () => {
                                 <Eye className="h-4 w-4" />
                               </button>
                             )}
-                            {canEdit && (
-                              <button
-                                onClick={() => openMoveModal(file)}
-                                title="Pindahkan Berkas"
-                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
-                              >
-                                <FolderSymlink className="h-4 w-4" />
-                              </button>
-                            )}
                             <button
                               onClick={() => handleDownload(file)}
                               title="Unduh"
@@ -1742,27 +1913,100 @@ export const DrivePage: React.FC = () => {
                             >
                               <Download className="h-4 w-4" />
                             </button>
-                            {canEdit && (
+
+                            <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
                               <button
-                                onClick={() => {
-                                  setRenameTarget(file);
-                                  setNewName(file.name);
-                                }}
-                                title="Ganti Nama"
-                                className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[#1E3E62] dark:hover:text-white transition-colors"
+                                type="button"
+                                onClick={() => setActiveMenuId(activeMenuId === file.id ? null : file.id)}
+                                title="Aksi berkas"
+                                className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
+                                  activeMenuId === file.id
+                                    ? 'bg-[#FF6701] text-white shadow-xs'
+                                    : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-[#1E3E62]'
+                                }`}
                               >
-                                <Edit3 className="h-4 w-4" />
+                                <MoreVertical className="h-4 w-4" />
                               </button>
-                            )}
-                            {canDelete && (
-                              <button
-                                onClick={() => setDeleteTarget(file)}
-                                title="Hapus"
-                                className="p-1.5 rounded-lg text-slate-500 hover:bg-red-500/20 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/20 dark:hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            )}
+
+                              {activeMenuId === file.id && (
+                                <div
+                                  ref={menuRef}
+                                  className="absolute right-0 top-full mt-1.5 z-40 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#1E3E62] dark:bg-[#0B192C] text-xs text-left animate-in fade-in zoom-in-95"
+                                >
+                                  <button
+                                    onClick={() => {
+                                      setActiveMenuId(null);
+                                      setShareTarget(file);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-orange-50 hover:text-[#FF6701] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                  >
+                                    <Share2 className="h-4 w-4 text-[#FF6701]" />
+                                    <span>Bagikan Berkas</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      setActiveMenuId(null);
+                                      setCommentsTarget(file);
+                                    }}
+                                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-orange-50 hover:text-[#FF6701] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <MessageSquare className="h-4 w-4 text-amber-500" />
+                                      <span>Komentar</span>
+                                    </div>
+                                    {file.comments_count && file.comments_count > 0 ? (
+                                      <span className="px-1.5 py-0.2 rounded-full bg-[#FF6701] text-white text-[9px] font-bold">
+                                        {file.comments_count}
+                                      </span>
+                                    ) : null}
+                                  </button>
+
+                                  {canEdit && (
+                                    <button
+                                      onClick={() => {
+                                        setActiveMenuId(null);
+                                        openMoveModal(file);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                    >
+                                      <FolderSymlink className="h-4 w-4 text-indigo-500" />
+                                      <span>Pindahkan Berkas</span>
+                                    </button>
+                                  )}
+
+                                  {canEdit && (
+                                    <button
+                                      onClick={() => {
+                                        setActiveMenuId(null);
+                                        setRenameTarget(file);
+                                        setNewName(file.name);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                                    >
+                                      <Edit3 className="h-4 w-4 text-emerald-500" />
+                                      <span>Ganti Nama</span>
+                                    </button>
+                                  )}
+
+                                  {canDelete && (
+                                    <>
+                                      <div className="my-1 border-t border-slate-100 dark:border-[#1E3E62]/60" />
+                                      <button
+                                        onClick={() => {
+                                          setActiveMenuId(null);
+                                          setDeleteTarget(file);
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span>Hapus Berkas</span>
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>

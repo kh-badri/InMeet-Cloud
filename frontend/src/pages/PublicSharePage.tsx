@@ -51,9 +51,11 @@ export const PublicSharePage: React.FC<PublicSharePageProps> = ({ token }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
-  // Theme state
+  // Theme state: default to light mode
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    return document.documentElement.classList.contains('dark');
+    const saved = localStorage.getItem('bv_theme_v2') || localStorage.getItem('theme');
+    if (saved === 'dark') return true;
+    return false; // Default light mode
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,10 +63,12 @@ export const PublicSharePage: React.FC<PublicSharePageProps> = ({ token }) => {
   const toggleDarkMode = () => {
     if (isDarkMode) {
       document.documentElement.classList.remove('dark');
+      localStorage.setItem('bv_theme_v2', 'light');
       localStorage.setItem('theme', 'light');
       setIsDarkMode(false);
     } else {
       document.documentElement.classList.add('dark');
+      localStorage.setItem('bv_theme_v2', 'dark');
       localStorage.setItem('theme', 'dark');
       setIsDarkMode(true);
     }

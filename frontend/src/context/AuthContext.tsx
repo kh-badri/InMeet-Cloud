@@ -19,9 +19,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('bv_theme');
-    if (saved === 'dark' || saved === 'light') return saved;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'dark'; // Default dark as per PRD
+    const v2 = localStorage.getItem('bv_theme_v2');
+    if (v2 === 'dark' || v2 === 'light') return v2;
+    // Default to light mode for all users
+    localStorage.setItem('bv_theme_v2', 'light');
+    localStorage.setItem('bv_theme', 'light');
+    return 'light';
   });
 
   useEffect(() => {
@@ -31,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       root.classList.remove('dark');
     }
+    localStorage.setItem('bv_theme_v2', theme);
     localStorage.setItem('bv_theme', theme);
   }, [theme]);
 
