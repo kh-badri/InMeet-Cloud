@@ -61,6 +61,7 @@ func (db *DB) Migrate(ctx context.Context) error {
 		"migrations/005_drive_trash_schema.sql",
 		"migrations/006_team_users_quota.sql",
 		"migrations/007_user_permissions.sql",
+		"migrations/008_drive_sharing_and_comments.sql",
 	}
 
 	for _, file := range migrationFiles {

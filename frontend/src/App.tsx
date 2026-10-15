@@ -13,9 +13,17 @@ import { DocsPage } from './pages/DocsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DriveUploadProvider } from './context/DriveUploadContext';
 import { UploadDock } from './components/UploadDock';
+import { PublicSharePage } from './pages/PublicSharePage';
 import { Cloud, ShieldCheck } from 'lucide-react';
 
 export const App: React.FC = () => {
+  // Check if public share route: e.g. /share/:token
+  const pathname = window.location.pathname;
+  if (pathname.startsWith('/share/')) {
+    const token = pathname.replace('/share/', '').split('/')[0];
+    return <PublicSharePage token={token} />;
+  }
+
   const { user, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
 

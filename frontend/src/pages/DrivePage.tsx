@@ -1,17 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, formatBytes, formatDate } from '../lib/api';
-import { DriveItem, DriveListResponse, DriveFolderTreeItem, User as UserModel } from '../types';
+import { DriveItem, DriveListResponse, DriveFolderTreeItem, User as UserModel, SharedWithMeResponse } from '../types';
 import { useDriveUpload } from '../context/DriveUploadContext';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
+import { ShareModal } from '../components/ShareModal';
+import { CommentsDrawer } from '../components/CommentsDrawer';
 import {
   Folder, FolderPlus, Upload, File, FileText, FileArchive,
   FileCode, Image as ImageIcon, Film, Music, Search,
   Grid, List, Trash2, Download, Edit3, ChevronRight,
   ArrowLeft, Home, RefreshCw, Eye, HardDrive,
   FolderArchive, Check, AlertCircle, FolderSymlink, MoveRight,
-  RotateCcw, Clock, AlertTriangle
+  RotateCcw, Clock, AlertTriangle, Share2, MessageSquare, Users
 } from 'lucide-react';
 
 interface HierarchicalFolder {
@@ -70,7 +72,7 @@ export const DrivePage: React.FC = () => {
   const isAdminOrViewer = isAdmin;
 
   // Navigation State
-  const [activeTab, setActiveTab] = useState<'drive' | 'trash'>('drive');
+  const [activeTab, setActiveTab] = useState<'drive' | 'shared' | 'trash'>('drive');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,6 +90,8 @@ export const DrivePage: React.FC = () => {
   const [previewItem, setPreviewItem] = useState<DriveItem | null>(null);
   const [moveTarget, setMoveTarget] = useState<DriveItem | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
+  const [shareTarget, setShareTarget] = useState<DriveItem | null>(null);
+  const [commentsTarget, setCommentsTarget] = useState<DriveItem | null>(null);
 
   // Upload state
   const [isDragOver, setIsDragOver] = useState(false);
@@ -219,6 +223,22 @@ export const DrivePage: React.FC = () => {
       return apiRequest<{ items: DriveItem[] }>(`/api/v1/drive/trash${qs}`);
     },
     enabled: canView,
+  });
+
+  // Fetch Shared With Me items
+  const {
+    data: sharedData,
+    isLoading: isSharedLoading,
+    isFetching: isSharedFetching,
+    refetch: refetchShared,
+  } = useQuery<SharedWithMeResponse>({
+    queryKey: ['drive-shared', debouncedSearch],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set('q', debouncedSearch);
+      return apiRequest<SharedWithMeResponse>(`/api/v1/drive/shared?${params.toString()}`);
+    },
+    enabled: canView && activeTab === 'shared',
   });
 
   // Restore Trash Item Mutation
@@ -502,6 +522,8 @@ export const DrivePage: React.FC = () => {
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white">
               {activeTab === 'trash' ? (
                 <Trash2 className="h-6 w-6 text-white" />
+              ) : activeTab === 'shared' ? (
+                <Users className="h-6 w-6 text-white" />
               ) : (
                 <HardDrive className="h-6 w-6 text-white" />
               )}
@@ -509,20 +531,32 @@ export const DrivePage: React.FC = () => {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  {activeTab === 'trash' ? 'Kotak Sampah Drive' : 'InMeet Drive'}
+                  {activeTab === 'trash'
+                    ? 'Kotak Sampah Drive'
+                    : activeTab === 'shared'
+                    ? 'Dibagikan dengan Saya'
+                    : 'InMeet Drive'}
                 </h1>
                 <span className="rounded-md border border-[#92B4EC]/50 bg-[#92B4EC]/20 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-[#FEA82F]">
-                  {activeTab === 'trash' ? 'KARANTINA 7 HARI' : 'PERSONAL STORAGE'}
+                  {activeTab === 'trash'
+                    ? 'KARANTINA 7 HARI'
+                    : activeTab === 'shared'
+                    ? 'AKSES BERSAMA TIM'
+                    : 'PERSONAL STORAGE'}
                 </span>
               </div>
               <div className="flex items-center gap-3 mt-1 flex-wrap">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {activeTab === 'trash'
                     ? trashData
-                    ? `${trashData.items.length} item dalam karantina (${formatBytes(
-                        trashData.items.reduce((acc, i) => acc + (i.size_bytes || 0), 0)
-                      )})`
-                    : 'Memuat data sampah...'
+                      ? `${trashData.items.length} item dalam karantina (${formatBytes(
+                          trashData.items.reduce((acc, i) => acc + (i.size_bytes || 0), 0)
+                        )})`
+                      : 'Memuat data sampah...'
+                    : activeTab === 'shared'
+                    ? sharedData
+                      ? `${sharedData.items.length} item dibagikan dengan Anda`
+                      : 'Memuat data dibagikan...'
                     : data
                     ? `${data.total_items} item tersimpan`
                     : 'Memuat data...'}
@@ -556,7 +590,7 @@ export const DrivePage: React.FC = () => {
 
           {/* Tab Switcher & Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* View Mode Toggle: Drive vs Trash */}
+            {/* View Mode Toggle: Drive vs Shared vs Trash */}
             <div className="flex items-center rounded-xl border border-[#92B4EC] p-0.5 bg-slate-50 dark:border-[#1E3E62] dark:bg-[#000000]">
               <button
                 onClick={() => {
@@ -571,6 +605,31 @@ export const DrivePage: React.FC = () => {
               >
                 <HardDrive className="h-3.5 w-3.5" />
                 <span>Drive Saya</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('shared');
+                  setSearchQuery('');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  activeTab === 'shared'
+                    ? 'bg-[#FF6701] text-white dark:bg-[#FF6500] dark:text-white'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>Dibagikan</span>
+                {sharedData?.items && sharedData.items.length > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono leading-none ${
+                      activeTab === 'shared'
+                        ? 'bg-white text-[#FF6500] font-black'
+                        : 'bg-blue-500 text-white font-bold'
+                    }`}
+                  >
+                    {sharedData.items.length}
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => {
@@ -638,6 +697,15 @@ export const DrivePage: React.FC = () => {
                   <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
                 </button>
               </>
+            ) : activeTab === 'shared' ? (
+              <button
+                onClick={() => refetchShared()}
+                title="Perbarui data dibagikan"
+                disabled={isSharedFetching}
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#92B4EC] text-slate-600 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62] transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSharedFetching ? 'animate-spin' : ''}`} />
+              </button>
             ) : (
               <>
                 {canDelete && (
@@ -715,6 +783,13 @@ export const DrivePage: React.FC = () => {
                     </button>
                   </React.Fragment>
                 ))}
+            </div>
+          ) : activeTab === 'shared' ? (
+            <div className="flex items-center gap-2 w-full sm:w-auto py-1">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                <Users className="h-4 w-4 text-[#FF6701]" />
+                <span>Item yang Dibagikan dengan Anda</span>
+              </span>
             </div>
           ) : (
             <div className="flex items-center gap-2 w-full sm:w-auto py-1">
@@ -1066,6 +1141,119 @@ export const DrivePage: React.FC = () => {
             </div>
           )}
         </div>
+      ) : activeTab === 'shared' ? (
+        isSharedLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="h-28 rounded-2xl border border-[#92B4EC]/50 bg-[#92B4EC]/10 dark:border-[#1E3E62] dark:bg-[#0B192C] animate-pulse"
+              />
+            ))}
+          </div>
+        ) : !sharedData?.items || sharedData.items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-[#92B4EC] dark:border-[#1E3E62] bg-white/50 dark:bg-[#0B192C]/50">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#92B4EC]/20 dark:bg-[#1E3E62] text-[#FF6701] dark:text-[#FF6500] mb-4">
+              <Users className="h-8 w-8" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              {debouncedSearch ? 'Tidak ada item bersama yang cocok' : 'Belum ada item yang dibagikan'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+              {debouncedSearch
+                ? `Tidak ada berkas atau folder bersama yang cocok dengan pencarian "${debouncedSearch}".`
+                : 'Ketika rekan tim membagikan berkas atau folder kepada Anda, item tersebut akan muncul di sini.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {sharedData.items.map(({ item: sharedItem, role: sharedRole, shared_by_email, shared_at }) => (
+                <div
+                  key={sharedItem.id}
+                  onClick={() => {
+                    if (sharedItem.type === 'folder') {
+                      setCurrentFolderId(sharedItem.id);
+                      setActiveTab('drive');
+                    } else if (isPreviewable(sharedItem)) {
+                      setPreviewItem(sharedItem);
+                    } else {
+                      handleDownload(sharedItem);
+                    }
+                  }}
+                  className="group relative flex flex-col justify-between p-4 rounded-2xl border border-[#92B4EC] bg-white hover:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500] transition-colors cursor-pointer shadow-xs"
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FEA82F]/20 dark:bg-[#1E3E62]">
+                      {getFileIcon(sharedItem)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate" title={sharedItem.name}>
+                          {sharedItem.name}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${
+                            sharedRole === 'editor'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : sharedRole === 'commenter'
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                          }`}
+                        >
+                          {sharedRole === 'editor' ? 'Editor' : sharedRole === 'commenter' ? 'Pengomentar' : 'Pelihat'}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {sharedItem.type === 'folder'
+                            ? `${sharedItem.item_count ?? 0} item`
+                            : formatBytes(sharedItem.size_bytes)}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 truncate">
+                        Dibagikan oleh: <strong className="text-slate-700 dark:text-slate-300">{shared_by_email || 'Anggota Tim'}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between">
+                    <span className="text-[9px] text-slate-400">
+                      {formatDate(shared_at)}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCommentsTarget(sharedItem);
+                        }}
+                        title="Komentar"
+                        className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {sharedItem.comments_count && sharedItem.comments_count > 0 ? (
+                          <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
+                            {sharedItem.comments_count}
+                          </span>
+                        ) : null}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload(sharedItem);
+                        }}
+                        title="Unduh"
+                        className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
       ) : isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {[...Array(6)].map((_, i) => (
@@ -1155,6 +1343,31 @@ export const DrivePage: React.FC = () => {
 
                     {/* Actions Menu */}
                     <div className="flex items-center gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShareTarget(folder);
+                        }}
+                        title="Bagikan Folder"
+                        className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCommentsTarget(folder);
+                        }}
+                        title="Komentar Folder"
+                        className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {folder.comments_count && folder.comments_count > 0 ? (
+                          <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
+                            {folder.comments_count}
+                          </span>
+                        ) : null}
+                      </button>
                       {canEdit && (
                         <button
                           onClick={(e) => {
@@ -1271,6 +1484,25 @@ export const DrivePage: React.FC = () => {
 
                       {/* Card Actions */}
                       <div className="mt-3 pt-2 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/60 flex items-center justify-between">
+                        <button
+                          onClick={() => setShareTarget(file)}
+                          title="Bagikan Berkas"
+                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
+                        >
+                          <Share2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setCommentsTarget(file)}
+                          title="Komentar"
+                          className="p-1 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          {file.comments_count && file.comments_count > 0 ? (
+                            <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
+                              {file.comments_count}
+                            </span>
+                          ) : null}
+                        </button>
                         {canEdit ? (
                           <button
                             onClick={() => openMoveModal(file)}
@@ -1279,7 +1511,7 @@ export const DrivePage: React.FC = () => {
                           >
                             <FolderSymlink className="h-3.5 w-3.5" />
                           </button>
-                        ) : <div />}
+                        ) : null}
                         <button
                           onClick={() => handleDownload(file)}
                           title="Unduh"
@@ -1369,6 +1601,25 @@ export const DrivePage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setShareTarget(folder)}
+                              title="Bagikan Folder"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
+                            >
+                              <Share2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setCommentsTarget(folder)}
+                              title="Komentar Folder"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              {folder.comments_count && folder.comments_count > 0 ? (
+                                <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
+                                  {folder.comments_count}
+                                </span>
+                              ) : null}
+                            </button>
                             {canEdit && (
                               <button
                                 onClick={() => openMoveModal(folder)}
@@ -1447,6 +1698,25 @@ export const DrivePage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setShareTarget(file)}
+                              title="Bagikan Berkas"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors"
+                            >
+                              <Share2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setCommentsTarget(file)}
+                              title="Komentar Berkas"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-[#92B4EC]/20 hover:text-[#FF6701] dark:text-slate-400 dark:hover:bg-[#1E3E62] transition-colors relative"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              {file.comments_count && file.comments_count > 0 ? (
+                                <span className="absolute -top-0.5 -right-0.5 h-3 min-w-[12px] px-0.5 rounded-full bg-[#FF6701] text-white text-[8px] font-bold flex items-center justify-center">
+                                  {file.comments_count}
+                                </span>
+                              ) : null}
+                            </button>
                             {isPreviewable(file) && (
                               <button
                                 onClick={() => setPreviewItem(file)}
@@ -1897,6 +2167,28 @@ export const DrivePage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={!!shareTarget}
+        onClose={() => setShareTarget(null)}
+        item={shareTarget}
+        onUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+          queryClient.invalidateQueries({ queryKey: ['drive-shared'] });
+        }}
+      />
+
+      {/* Comments Drawer */}
+      <CommentsDrawer
+        isOpen={!!commentsTarget}
+        onClose={() => setCommentsTarget(null)}
+        item={commentsTarget}
+        onCommentAdded={() => {
+          queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+          queryClient.invalidateQueries({ queryKey: ['drive-shared'] });
+        }}
+      />
     </div>
   );
 };

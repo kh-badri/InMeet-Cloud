@@ -232,6 +232,9 @@ type DriveItem struct {
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
 	ItemCount   *int          `json:"item_count,omitempty"`
+	IsShared    bool          `json:"is_shared,omitempty"`
+	ShareRole   *ShareRole    `json:"share_role,omitempty"`
+	CommentsCount int         `json:"comments_count,omitempty"`
 }
 
 type DriveBreadcrumb struct {
@@ -306,6 +309,93 @@ type InitUploadResponse struct {
 
 type CompleteUploadRequest struct {
 	UploadID uuid.UUID `json:"upload_id"`
+}
+
+type ShareRole string
+
+const (
+	ShareRoleViewer    ShareRole = "viewer"
+	ShareRoleCommenter ShareRole = "commenter"
+	ShareRoleEditor    ShareRole = "editor"
+)
+
+type DriveShare struct {
+	ID               uuid.UUID `json:"id"`
+	ItemID           uuid.UUID `json:"item_id"`
+	SharedByUserID   uuid.UUID `json:"shared_by_user_id"`
+	SharedWithUserID uuid.UUID `json:"shared_with_user_id"`
+	SharedWithEmail  string    `json:"shared_with_email,omitempty"`
+	Role             ShareRole `json:"role"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type DrivePublicLink struct {
+	ID              uuid.UUID `json:"id"`
+	ItemID          uuid.UUID `json:"item_id"`
+	CreatedByUserID uuid.UUID `json:"created_by_user_id"`
+	ShareToken      string    `json:"share_token"`
+	Role            ShareRole `json:"role"`
+	IsActive        bool      `json:"is_active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	URL             string    `json:"url,omitempty"`
+}
+
+type DriveComment struct {
+	ID         uuid.UUID  `json:"id"`
+	ItemID     uuid.UUID  `json:"item_id"`
+	UserID     *uuid.UUID `json:"user_id,omitempty"`
+	AuthorName string     `json:"author_name"`
+	Content    string     `json:"content"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+type ItemShareDetailsResponse struct {
+	Item           *DriveItem       `json:"item"`
+	IsOwner        bool             `json:"is_owner"`
+	CanManageShare bool             `json:"can_manage_share"`
+	Shares         []*DriveShare    `json:"shares"`
+	PublicLink     *DrivePublicLink `json:"public_link"`
+}
+
+type UpdateUserShareRequest struct {
+	Email string    `json:"email"`
+	Role  ShareRole `json:"role"`
+}
+
+type UpdatePublicLinkRequest struct {
+	IsActive bool      `json:"is_active"`
+	Role     ShareRole `json:"role"`
+}
+
+type CreateCommentRequest struct {
+	AuthorName string `json:"author_name,omitempty"`
+	Content    string `json:"content"`
+}
+
+type SharedWithMeItem struct {
+	Item          *DriveItem `json:"item"`
+	Role          ShareRole  `json:"role"`
+	SharedByEmail string     `json:"shared_by_email"`
+	SharedAt      time.Time  `json:"shared_at"`
+}
+
+type SharedWithMeResponse struct {
+	Items       []*SharedWithMeItem `json:"items"`
+	TotalItems  int                 `json:"total_items"`
+	Breadcrumbs []DriveBreadcrumb   `json:"breadcrumbs,omitempty"`
+}
+
+type PublicSharedItemResponse struct {
+	Item          *DriveItem        `json:"item"`
+	Role          ShareRole         `json:"role"`
+	Items         []*DriveItem      `json:"items,omitempty"`
+	Breadcrumbs   []DriveBreadcrumb `json:"breadcrumbs,omitempty"`
+	CommentsCount int               `json:"comments_count"`
+	TotalItems    int               `json:"total_items,omitempty"`
+	TotalBytes    int64             `json:"total_bytes,omitempty"`
 }
 
 

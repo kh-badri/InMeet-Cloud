@@ -3,6 +3,8 @@ package service
 import (
 	"archive/zip"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +31,8 @@ var (
 	ErrPermissionDeleteDenied = errors.New("akun Anda tidak memiliki izin untuk menghapus data")
 	ErrViewerReadOnly         = ErrPermissionEditDenied
 	ErrAccessDenied           = errors.New("akses ditolak")
+	ErrShareNotFound          = errors.New("tautan berbagi tidak ditemukan atau sudah tidak aktif")
+	ErrSharePermissionDenied  = errors.New("Anda tidak memiliki izin yang cukup untuk melakukan tindakan ini")
 )
 
 type DriveService struct {
@@ -76,34 +80,50 @@ func (s *DriveService) ListItems(ctx context.Context, caller *model.User, target
 	}
 
 	var effectiveUserID *uuid.UUID
+	var currentFolder *model.DriveItem
+	var breadcrumbs []model.DriveBreadcrumb
+
 	if caller.Role == model.RoleUser {
 		effectiveUserID = &caller.ID
+		if parentID != nil {
+			var err error
+			currentFolder, err = s.repo.GetByID(ctx, *parentID, caller.ID)
+			if err != nil {
+				shareRole, sErr := s.repo.GetUserShareRole(ctx, *parentID, caller.ID)
+				if sErr == nil && shareRole != nil {
+					currentFolder, err = s.repo.GetByIDAny(ctx, *parentID)
+					if err == nil {
+						currentFolder.ShareRole = shareRole
+						effectiveUserID = &currentFolder.UserID
+					}
+				}
+			}
+			if err != nil && !errors.Is(err, repository.ErrDriveItemNotFound) {
+				return nil, fmt.Errorf("gagal mengambil detail folder: %w", err)
+			}
+			crumbs, err := s.repo.GetBreadcrumbs(ctx, *parentID)
+			if err == nil {
+				breadcrumbs = crumbs
+			}
+		}
 	} else {
 		effectiveUserID = targetUserID
+		if parentID != nil {
+			var err error
+			currentFolder, err = s.repo.GetByIDAny(ctx, *parentID)
+			if err != nil && !errors.Is(err, repository.ErrDriveItemNotFound) {
+				return nil, fmt.Errorf("gagal mengambil detail folder: %w", err)
+			}
+			crumbs, err := s.repo.GetBreadcrumbs(ctx, *parentID)
+			if err == nil {
+				breadcrumbs = crumbs
+			}
+		}
 	}
 
 	items, err := s.repo.List(ctx, effectiveUserID, parentID, query)
 	if err != nil {
 		return nil, fmt.Errorf("gagal mengambil daftar item: %w", err)
-	}
-
-	var currentFolder *model.DriveItem
-	var breadcrumbs []model.DriveBreadcrumb
-
-	if parentID != nil {
-		if caller.Role == model.RoleUser {
-			currentFolder, err = s.repo.GetByID(ctx, *parentID, caller.ID)
-		} else {
-			currentFolder, err = s.repo.GetByIDAny(ctx, *parentID)
-		}
-		if err != nil && !errors.Is(err, repository.ErrDriveItemNotFound) {
-			return nil, fmt.Errorf("gagal mengambil detail folder: %w", err)
-		}
-
-		crumbs, err := s.repo.GetBreadcrumbs(ctx, *parentID)
-		if err == nil {
-			breadcrumbs = crumbs
-		}
 	}
 
 	totalItems, totalBytes, err := s.repo.GetStats(ctx, effectiveUserID)
@@ -195,6 +215,12 @@ func (s *DriveService) CreateFolder(ctx context.Context, caller *model.User, par
 		var err error
 		if caller.Role == model.RoleUser {
 			parent, err = s.repo.GetByID(ctx, *parentID, caller.ID)
+			if err != nil {
+				shareRole, sErr := s.repo.GetUserShareRole(ctx, *parentID, caller.ID)
+				if sErr == nil && shareRole != nil && *shareRole == model.ShareRoleEditor {
+					parent, err = s.repo.GetByIDAny(ctx, *parentID)
+				}
+			}
 		} else {
 			parent, err = s.repo.GetByIDAny(ctx, *parentID)
 		}
@@ -231,6 +257,12 @@ func (s *DriveService) UploadFile(
 		var err error
 		if caller.Role == model.RoleUser {
 			parent, err = s.repo.GetByID(ctx, *initialParentID, caller.ID)
+			if err != nil {
+				shareRole, sErr := s.repo.GetUserShareRole(ctx, *initialParentID, caller.ID)
+				if sErr == nil && shareRole != nil && *shareRole == model.ShareRoleEditor {
+					parent, err = s.repo.GetByIDAny(ctx, *initialParentID)
+				}
+			}
 		} else {
 			parent, err = s.repo.GetByIDAny(ctx, *initialParentID)
 		}
@@ -353,7 +385,19 @@ func (s *DriveService) GetItem(ctx context.Context, caller *model.User, id uuid.
 		return nil, ErrPermissionViewDenied
 	}
 	if caller.Role == model.RoleUser {
-		return s.repo.GetByID(ctx, id, caller.ID)
+		item, err := s.repo.GetByID(ctx, id, caller.ID)
+		if err == nil {
+			return item, nil
+		}
+		shareRole, sErr := s.repo.GetUserShareRole(ctx, id, caller.ID)
+		if sErr == nil && shareRole != nil {
+			sharedItem, errAny := s.repo.GetByIDAny(ctx, id)
+			if errAny == nil {
+				sharedItem.ShareRole = shareRole
+				return sharedItem, nil
+			}
+		}
+		return nil, err
 	}
 	return s.repo.GetByIDAny(ctx, id)
 }
@@ -551,6 +595,12 @@ func (s *DriveService) RenameItem(ctx context.Context, caller *model.User, id uu
 	var err error
 	if caller.Role == model.RoleUser {
 		item, err = s.repo.GetByID(ctx, id, caller.ID)
+		if err != nil {
+			shareRole, sErr := s.repo.GetUserShareRole(ctx, id, caller.ID)
+			if sErr == nil && shareRole != nil && *shareRole == model.ShareRoleEditor {
+				item, err = s.repo.GetByIDAny(ctx, id)
+			}
+		}
 	} else {
 		item, err = s.repo.GetByIDAny(ctx, id)
 	}
@@ -583,6 +633,12 @@ func (s *DriveService) ZipFolder(ctx context.Context, caller *model.User, folder
 	var err error
 	if caller.Role == model.RoleUser {
 		folder, err = s.repo.GetByID(ctx, folderID, caller.ID)
+		if err != nil {
+			shareRole, sErr := s.repo.GetUserShareRole(ctx, folderID, caller.ID)
+			if sErr == nil && shareRole != nil {
+				folder, err = s.repo.GetByIDAny(ctx, folderID)
+			}
+		}
 	} else {
 		folder, err = s.repo.GetByIDAny(ctx, folderID)
 	}
@@ -751,6 +807,12 @@ func (s *DriveService) InitUploadSession(ctx context.Context, caller *model.User
 		var err error
 		if caller.Role == model.RoleUser {
 			parent, err = s.repo.GetByID(ctx, *req.ParentID, caller.ID)
+			if err != nil {
+				shareRole, sErr := s.repo.GetUserShareRole(ctx, *req.ParentID, caller.ID)
+				if sErr == nil && shareRole != nil && *shareRole == model.ShareRoleEditor {
+					parent, err = s.repo.GetByIDAny(ctx, *req.ParentID)
+				}
+			}
 		} else {
 			parent, err = s.repo.GetByIDAny(ctx, *req.ParentID)
 		}
@@ -910,6 +972,12 @@ func (s *DriveService) CompleteUploadSession(ctx context.Context, caller *model.
 		var err error
 		if caller.Role == model.RoleUser {
 			parent, err = s.repo.GetByID(ctx, *session.ParentID, caller.ID)
+			if err != nil {
+				shareRole, sErr := s.repo.GetUserShareRole(ctx, *session.ParentID, caller.ID)
+				if sErr == nil && shareRole != nil && *shareRole == model.ShareRoleEditor {
+					parent, err = s.repo.GetByIDAny(ctx, *session.ParentID)
+				}
+			}
 		} else {
 			parent, err = s.repo.GetByIDAny(ctx, *session.ParentID)
 		}
@@ -1037,3 +1105,677 @@ func (s *DriveService) AbortUploadSession(ctx context.Context, caller *model.Use
 	}
 	return s.repo.SetUploadSessionStatus(ctx, uploadID, caller.ID, model.DriveUploadSessionAborted)
 }
+
+// =========================================================================
+// SHARING & COMMENTS SERVICE METHODS
+// =========================================================================
+
+func generateShareToken() string {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return uuid.New().String()
+	}
+	return hex.EncodeToString(b)
+}
+
+func (s *DriveService) GetItemShareDetails(ctx context.Context, caller *model.User, itemID uuid.UUID) (*model.ItemShareDetailsResponse, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanView {
+		return nil, ErrPermissionViewDenied
+	}
+
+	item, err := s.repo.GetByIDAny(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+
+	isOwner := item.UserID == caller.ID
+	canManage := isOwner || caller.Role == model.RoleAdmin
+
+	if !canManage {
+		shareRole, _ := s.repo.GetUserShareRole(ctx, itemID, caller.ID)
+		if shareRole == nil {
+			return nil, ErrAccessDenied
+		}
+	}
+
+	shares, err := s.repo.GetSharesByItemID(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	if shares == nil {
+		shares = []*model.DriveShare{}
+	}
+
+	publicLink, err := s.repo.GetPublicLinkByItemID(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.ItemShareDetailsResponse{
+		Item:           item,
+		IsOwner:        isOwner,
+		CanManageShare: canManage,
+		Shares:         shares,
+		PublicLink:     publicLink,
+	}, nil
+}
+
+func (s *DriveService) UpdateUserShare(ctx context.Context, caller *model.User, itemID uuid.UUID, targetEmail string, role model.ShareRole) (*model.DriveShare, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
+	}
+
+	item, err := s.repo.GetByIDAny(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+
+	if item.UserID != caller.ID && caller.Role != model.RoleAdmin {
+		return nil, ErrSharePermissionDenied
+	}
+
+	cleanEmail := strings.TrimSpace(strings.ToLower(targetEmail))
+	if cleanEmail == "" {
+		return nil, errors.New("email pengguna tujuan harus diisi")
+	}
+
+	if role != model.ShareRoleViewer && role != model.ShareRoleCommenter && role != model.ShareRoleEditor {
+		return nil, errors.New("peran berbagi tidak valid (pilihan: viewer, commenter, editor)")
+	}
+
+	targetUser, err := s.userRepo.GetByEmail(ctx, cleanEmail)
+	if err != nil {
+		return nil, fmt.Errorf("pengguna dengan email %s tidak ditemukan di sistem", cleanEmail)
+	}
+
+	if targetUser.ID == item.UserID {
+		return nil, errors.New("tidak dapat membagikan ke pemilik berkas")
+	}
+
+	share, err := s.repo.UpsertUserShare(ctx, itemID, caller.ID, targetUser.ID, role)
+	if err != nil {
+		return nil, fmt.Errorf("gagal membagikan ke pengguna: %w", err)
+	}
+	share.SharedWithEmail = targetUser.Email
+
+	s.LogAudit(ctx, caller.ID, "drive_item_shared_user", itemID.String(), map[string]interface{}{
+		"item_name":         item.Name,
+		"shared_with_email": targetUser.Email,
+		"role":              string(role),
+	})
+
+	return share, nil
+}
+
+func (s *DriveService) RemoveUserShare(ctx context.Context, caller *model.User, itemID uuid.UUID, targetUserID uuid.UUID) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if !caller.CanEdit {
+		return ErrPermissionEditDenied
+	}
+
+	item, err := s.repo.GetByIDAny(ctx, itemID)
+	if err != nil {
+		return err
+	}
+
+	if item.UserID != caller.ID && caller.Role != model.RoleAdmin {
+		return ErrSharePermissionDenied
+	}
+
+	if err := s.repo.DeleteUserShare(ctx, itemID, targetUserID); err != nil {
+		return err
+	}
+
+	s.LogAudit(ctx, caller.ID, "drive_item_unshared_user", itemID.String(), map[string]interface{}{
+		"item_name":      item.Name,
+		"target_user_id": targetUserID.String(),
+	})
+	return nil
+}
+
+func (s *DriveService) UpdatePublicLink(ctx context.Context, caller *model.User, itemID uuid.UUID, isActive bool, role model.ShareRole) (*model.DrivePublicLink, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
+	}
+
+	item, err := s.repo.GetByIDAny(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+
+	if item.UserID != caller.ID && caller.Role != model.RoleAdmin {
+		return nil, ErrSharePermissionDenied
+	}
+
+	if role != model.ShareRoleViewer && role != model.ShareRoleCommenter && role != model.ShareRoleEditor {
+		role = model.ShareRoleViewer
+	}
+
+	existing, err := s.repo.GetPublicLinkByItemID(ctx, itemID)
+	token := ""
+	if err == nil && existing != nil && existing.ShareToken != "" {
+		token = existing.ShareToken
+	} else {
+		token = generateShareToken()
+	}
+
+	pl, err := s.repo.UpsertPublicLink(ctx, itemID, caller.ID, token, role, isActive)
+	if err != nil {
+		return nil, fmt.Errorf("gagal memperbarui tautan publik: %w", err)
+	}
+
+	s.LogAudit(ctx, caller.ID, "drive_public_link_updated", itemID.String(), map[string]interface{}{
+		"item_name": item.Name,
+		"is_active": isActive,
+		"role":      string(role),
+	})
+
+	return pl, nil
+}
+
+func (s *DriveService) ListSharedWithMe(ctx context.Context, caller *model.User, query string) (*model.SharedWithMeResponse, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanView {
+		return nil, ErrPermissionViewDenied
+	}
+
+	items, err := s.repo.ListSharedWithUser(ctx, caller.ID, strings.TrimSpace(query))
+	if err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = []*model.SharedWithMeItem{}
+	}
+
+	return &model.SharedWithMeResponse{
+		Items:      items,
+		TotalItems: len(items),
+	}, nil
+}
+
+func (s *DriveService) GetPublicSharedItem(ctx context.Context, token string, subfolderID *uuid.UUID) (*model.PublicSharedItemResponse, error) {
+	pl, err := s.repo.GetPublicLinkByToken(ctx, token)
+	if err != nil || pl == nil || !pl.IsActive {
+		return nil, ErrShareNotFound
+	}
+
+	rootItem, err := s.repo.GetByIDAny(ctx, pl.ItemID)
+	if err != nil || rootItem.IsTrashed {
+		return nil, ErrShareNotFound
+	}
+
+	currentItem := rootItem
+	if subfolderID != nil && *subfolderID != rootItem.ID {
+		isDesc, err := s.repo.CheckItemIsDescendantOf(ctx, *subfolderID, rootItem.ID)
+		if err != nil || !isDesc {
+			return nil, ErrAccessDenied
+		}
+		curr, err := s.repo.GetByIDAny(ctx, *subfolderID)
+		if err != nil || curr.IsTrashed {
+			return nil, ErrShareNotFound
+		}
+		currentItem = curr
+	}
+
+	var children []*model.DriveItem
+	if currentItem.Type == model.DriveItemTypeFolder {
+		childItems, err := s.repo.List(ctx, &rootItem.UserID, &currentItem.ID, "")
+		if err == nil {
+			children = childItems
+		}
+	}
+	if children == nil {
+		children = []*model.DriveItem{}
+	}
+
+	commentsCount, _ := s.repo.GetCommentsCountByItemID(ctx, currentItem.ID)
+
+	var breadcrumbs []model.DriveBreadcrumb
+	if currentItem.ID == rootItem.ID {
+		breadcrumbs = []model.DriveBreadcrumb{{ID: &rootItem.ID, Name: rootItem.Name}}
+	} else {
+		allCrumbs, err := s.repo.GetBreadcrumbs(ctx, currentItem.ID)
+		if err == nil {
+			found := false
+			for _, c := range allCrumbs {
+				if c.ID != nil && *c.ID == rootItem.ID {
+					found = true
+				}
+				if found {
+					breadcrumbs = append(breadcrumbs, c)
+				}
+			}
+		}
+	}
+
+	totalItems := 0
+	var totalBytes int64 = 0
+	if currentItem.Type == model.DriveItemTypeFolder {
+		totalItems = len(children)
+		for _, c := range children {
+			totalBytes += c.SizeBytes
+		}
+	} else {
+		totalItems = 1
+		totalBytes = currentItem.SizeBytes
+	}
+
+	return &model.PublicSharedItemResponse{
+		Item:          currentItem,
+		Role:          pl.Role,
+		Items:         children,
+		Breadcrumbs:   breadcrumbs,
+		CommentsCount: commentsCount,
+		TotalItems:    totalItems,
+		TotalBytes:    totalBytes,
+	}, nil
+}
+
+func (s *DriveService) GetPublicItemFile(ctx context.Context, token string, requestedItemID *uuid.UUID) (*model.DriveItem, string, error) {
+	pl, err := s.repo.GetPublicLinkByToken(ctx, token)
+	if err != nil || pl == nil || !pl.IsActive {
+		return nil, "", ErrShareNotFound
+	}
+
+	targetID := pl.ItemID
+	if requestedItemID != nil && *requestedItemID != pl.ItemID {
+		isDesc, err := s.repo.CheckItemIsDescendantOf(ctx, *requestedItemID, pl.ItemID)
+		if err != nil || !isDesc {
+			return nil, "", ErrAccessDenied
+		}
+		targetID = *requestedItemID
+	}
+
+	item, err := s.repo.GetByIDAny(ctx, targetID)
+	if err != nil || item.IsTrashed {
+		return nil, "", ErrShareNotFound
+	}
+
+	if item.Type == model.DriveItemTypeFolder {
+		return nil, "", errors.New("folder tidak dapat diunduh secara langsung sebagai berkas tunggal")
+	}
+
+	if item.StoragePath == "" {
+		return nil, "", errors.New("lokasi berkas tidak ditemukan")
+	}
+
+	return item, item.StoragePath, nil
+}
+
+func (s *DriveService) PublicZipFolder(ctx context.Context, token string, requestedFolderID *uuid.UUID, w http.ResponseWriter) error {
+	pl, err := s.repo.GetPublicLinkByToken(ctx, token)
+	if err != nil || pl == nil || !pl.IsActive {
+		return ErrShareNotFound
+	}
+
+	targetID := pl.ItemID
+	if requestedFolderID != nil && *requestedFolderID != pl.ItemID {
+		isDesc, err := s.repo.CheckItemIsDescendantOf(ctx, *requestedFolderID, pl.ItemID)
+		if err != nil || !isDesc {
+			return ErrAccessDenied
+		}
+		targetID = *requestedFolderID
+	}
+
+	folder, err := s.repo.GetByIDAny(ctx, targetID)
+	if err != nil || folder.IsTrashed {
+		return ErrShareNotFound
+	}
+	if folder.Type != model.DriveItemTypeFolder {
+		return errors.New("item bukan folder")
+	}
+
+	descendants, err := s.repo.FindDescendants(ctx, targetID)
+	if err != nil {
+		return err
+	}
+
+	itemMap := make(map[uuid.UUID]*model.DriveItem)
+	for _, d := range descendants {
+		itemMap[d.ID] = d
+	}
+
+	getPath := func(item *model.DriveItem) string {
+		var pathParts []string
+		curr := item
+		for curr != nil && curr.ID != targetID {
+			pathParts = append([]string{curr.Name}, pathParts...)
+			if curr.ParentID == nil {
+				break
+			}
+			curr = itemMap[*curr.ParentID]
+		}
+		return filepath.Join(pathParts...)
+	}
+
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, folder.Name))
+	w.Header().Set("Content-Type", "application/zip")
+
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
+
+	for _, d := range descendants {
+		if d.ID == targetID {
+			continue
+		}
+		relPath := getPath(d)
+		if relPath == "" {
+			continue
+		}
+
+		if d.Type == model.DriveItemTypeFolder {
+			_, _ = zipWriter.Create(filepath.ToSlash(relPath) + "/")
+		} else {
+			fileEntry, err := zipWriter.Create(filepath.ToSlash(relPath))
+			if err != nil {
+				continue
+			}
+
+			if d.StoragePath != "" {
+				diskFile, err := os.Open(d.StoragePath)
+				if err == nil {
+					_, _ = io.Copy(fileEntry, diskFile)
+					_ = diskFile.Close()
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *DriveService) GetComments(ctx context.Context, caller *model.User, itemID uuid.UUID) ([]*model.DriveComment, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanView {
+		return nil, ErrPermissionViewDenied
+	}
+
+	item, err := s.repo.GetByIDAny(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+
+	if caller.Role != model.RoleAdmin && item.UserID != caller.ID {
+		shareRole, err := s.repo.GetUserShareRole(ctx, itemID, caller.ID)
+		if err != nil || shareRole == nil {
+			return nil, ErrAccessDenied
+		}
+	}
+
+	comments, err := s.repo.GetCommentsByItemID(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	if comments == nil {
+		comments = []*model.DriveComment{}
+	}
+	return comments, nil
+}
+
+func (s *DriveService) AddComment(ctx context.Context, caller *model.User, itemID uuid.UUID, content string) (*model.DriveComment, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanView {
+		return nil, ErrPermissionViewDenied
+	}
+
+	cleanContent := strings.TrimSpace(content)
+	if cleanContent == "" {
+		return nil, errors.New("isi komentar tidak boleh kosong")
+	}
+
+	item, err := s.repo.GetByIDAny(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+
+	if caller.Role != model.RoleAdmin && item.UserID != caller.ID {
+		shareRole, err := s.repo.GetUserShareRole(ctx, itemID, caller.ID)
+		if err != nil || shareRole == nil {
+			return nil, ErrAccessDenied
+		}
+		if *shareRole == model.ShareRoleViewer {
+			return nil, ErrSharePermissionDenied
+		}
+	}
+
+	c, err := s.repo.CreateComment(ctx, itemID, &caller.ID, caller.Email, cleanContent)
+	if err != nil {
+		return nil, err
+	}
+
+	s.LogAudit(ctx, caller.ID, "drive_comment_added", itemID.String(), map[string]interface{}{
+		"item_name": item.Name,
+		"author":    caller.Email,
+	})
+
+	return c, nil
+}
+
+func (s *DriveService) GetPublicComments(ctx context.Context, token string, requestedItemID *uuid.UUID) ([]*model.DriveComment, error) {
+	pl, err := s.repo.GetPublicLinkByToken(ctx, token)
+	if err != nil || pl == nil || !pl.IsActive {
+		return nil, ErrShareNotFound
+	}
+
+	targetID := pl.ItemID
+	if requestedItemID != nil && *requestedItemID != pl.ItemID {
+		isDesc, err := s.repo.CheckItemIsDescendantOf(ctx, *requestedItemID, pl.ItemID)
+		if err != nil || !isDesc {
+			return nil, ErrAccessDenied
+		}
+		targetID = *requestedItemID
+	}
+
+	comments, err := s.repo.GetCommentsByItemID(ctx, targetID)
+	if err != nil {
+		return nil, err
+	}
+	if comments == nil {
+		comments = []*model.DriveComment{}
+	}
+	return comments, nil
+}
+
+func (s *DriveService) AddPublicComment(ctx context.Context, token string, requestedItemID *uuid.UUID, authorName, content string) (*model.DriveComment, error) {
+	pl, err := s.repo.GetPublicLinkByToken(ctx, token)
+	if err != nil || pl == nil || !pl.IsActive {
+		return nil, ErrShareNotFound
+	}
+
+	if pl.Role == model.ShareRoleViewer {
+		return nil, ErrSharePermissionDenied
+	}
+
+	targetID := pl.ItemID
+	if requestedItemID != nil && *requestedItemID != pl.ItemID {
+		isDesc, err := s.repo.CheckItemIsDescendantOf(ctx, *requestedItemID, pl.ItemID)
+		if err != nil || !isDesc {
+			return nil, ErrAccessDenied
+		}
+		targetID = *requestedItemID
+	}
+
+	cleanContent := strings.TrimSpace(content)
+	if cleanContent == "" {
+		return nil, errors.New("isi komentar tidak boleh kosong")
+	}
+
+	cleanAuthor := strings.TrimSpace(authorName)
+	if cleanAuthor == "" {
+		cleanAuthor = "Tamu (Pengunjung Tautan)"
+	}
+
+	return s.repo.CreateComment(ctx, targetID, nil, cleanAuthor, cleanContent)
+}
+
+func (s *DriveService) PublicCreateFolder(ctx context.Context, token string, parentID *uuid.UUID, name string) (*model.DriveItem, error) {
+	pl, err := s.repo.GetPublicLinkByToken(ctx, token)
+	if err != nil || pl == nil || !pl.IsActive {
+		return nil, ErrShareNotFound
+	}
+
+	if pl.Role != model.ShareRoleEditor {
+		return nil, ErrSharePermissionDenied
+	}
+
+	rootItem, err := s.repo.GetByIDAny(ctx, pl.ItemID)
+	if err != nil || rootItem.IsTrashed {
+		return nil, ErrShareNotFound
+	}
+
+	targetParentID := pl.ItemID
+	if parentID != nil {
+		isDesc, err := s.repo.CheckItemIsDescendantOf(ctx, *parentID, pl.ItemID)
+		if err != nil || !isDesc {
+			return nil, ErrAccessDenied
+		}
+		targetParentID = *parentID
+	}
+
+	cleanName := strings.TrimSpace(name)
+	if cleanName == "" || strings.Contains(cleanName, "/") || strings.Contains(cleanName, "\\") {
+		return nil, ErrInvalidItemName
+	}
+
+	existing, err := s.repo.FindFolderByName(ctx, rootItem.UserID, &targetParentID, cleanName)
+	if err == nil && existing != nil {
+		return existing, nil
+	}
+
+	item := &model.DriveItem{
+		ID:        uuid.New(),
+		UserID:    rootItem.UserID,
+		ParentID:  &targetParentID,
+		Name:      cleanName,
+		Type:      model.DriveItemTypeFolder,
+		SizeBytes: 0,
+		MimeType:  "application/x-directory",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.repo.Create(ctx, item); err != nil {
+		return nil, fmt.Errorf("gagal membuat folder: %w", err)
+	}
+
+	zero := 0
+	item.ItemCount = &zero
+
+	return item, nil
+}
+
+func (s *DriveService) PublicUploadFile(
+	ctx context.Context,
+	token string,
+	parentID *uuid.UUID,
+	filename string,
+	r io.Reader,
+	size int64,
+	mimeType string,
+) (*model.DriveItem, error) {
+	pl, err := s.repo.GetPublicLinkByToken(ctx, token)
+	if err != nil || pl == nil || !pl.IsActive {
+		return nil, ErrShareNotFound
+	}
+
+	if pl.Role != model.ShareRoleEditor {
+		return nil, ErrSharePermissionDenied
+	}
+
+	rootItem, err := s.repo.GetByIDAny(ctx, pl.ItemID)
+	if err != nil || rootItem.IsTrashed {
+		return nil, ErrShareNotFound
+	}
+
+	targetParentID := pl.ItemID
+	if parentID != nil {
+		isDesc, err := s.repo.CheckItemIsDescendantOf(ctx, *parentID, pl.ItemID)
+		if err != nil || !isDesc {
+			return nil, ErrAccessDenied
+		}
+		targetParentID = *parentID
+	}
+
+	ownerID := rootItem.UserID
+
+	if s.userRepo != nil && size > 0 {
+		user, err := s.userRepo.GetByID(ctx, ownerID)
+		if err == nil && user != nil && user.StorageQuotaBytes > 0 {
+			_, usedBytes, _ := s.repo.GetStats(ctx, &ownerID)
+			if usedBytes+size > user.StorageQuotaBytes {
+				return nil, fmt.Errorf("kapasitas penyimpanan pemilik Drive telah penuh (%s)", formatBytes(user.StorageQuotaBytes))
+			}
+		}
+	}
+
+	cleanFilename := strings.TrimSpace(filename)
+	if cleanFilename == "" {
+		cleanFilename = "unnamed_file"
+	}
+
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		ext := filepath.Ext(cleanFilename)
+		if detected := mime.TypeByExtension(ext); detected != "" {
+			mimeType = detected
+		} else {
+			mimeType = "application/octet-stream"
+		}
+	}
+
+	itemID := uuid.New()
+	userDir := filepath.Join(s.baseDir, ownerID.String())
+	if err := os.MkdirAll(userDir, 0750); err != nil {
+		return nil, fmt.Errorf("gagal membuat direktori user: %w", err)
+	}
+
+	storagePath := filepath.Join(userDir, itemID.String()+"_"+cleanFilename)
+	out, err := os.OpenFile(storagePath, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0640)
+	if err != nil {
+		return nil, fmt.Errorf("gagal membuat berkas penyimpanan: %w", err)
+	}
+	defer out.Close()
+
+	written, err := io.Copy(out, r)
+	if err != nil {
+		_ = os.Remove(storagePath)
+		return nil, fmt.Errorf("gagal menulis data berkas: %w", err)
+	}
+
+	item := &model.DriveItem{
+		ID:          itemID,
+		UserID:      ownerID,
+		ParentID:    &targetParentID,
+		Name:        cleanFilename,
+		Type:        model.DriveItemTypeFile,
+		SizeBytes:   written,
+		MimeType:    mimeType,
+		StoragePath: storagePath,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := s.repo.Create(ctx, item); err != nil {
+		_ = os.Remove(storagePath)
+		return nil, fmt.Errorf("gagal mencatat berkas di basis data: %w", err)
+	}
+
+	return item, nil
+}
+

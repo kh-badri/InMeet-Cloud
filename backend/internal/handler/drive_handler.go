@@ -607,3 +607,477 @@ func (h *DriveHandler) HandleEmptyTrash(w http.ResponseWriter, r *http.Request) 
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "seluruh isi sampah berhasil dikosongkan"})
 }
+
+// =========================================================================
+// SHARING & COMMENTS HANDLERS
+// =========================================================================
+
+func (h *DriveHandler) HandleGetShareDetails(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	res, err := h.driveService.GetItemShareDetails(r.Context(), user, id)
+	if err != nil {
+		if errors.Is(err, service.ErrAccessDenied) || errors.Is(err, service.ErrSharePermissionDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *DriveHandler) HandleUpdateUserShare(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	var req model.UpdateUserShareRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	share, err := h.driveService.UpdateUserShare(r.Context(), user, id, req.Email, req.Role)
+	if err != nil {
+		if errors.Is(err, service.ErrSharePermissionDenied) || errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, share)
+}
+
+func (h *DriveHandler) HandleRemoveUserShare(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	targetUserIDStr := chi.URLParam(r, "userId")
+	targetUserID, err := uuid.Parse(targetUserIDStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid target user ID"})
+		return
+	}
+
+	if err := h.driveService.RemoveUserShare(r.Context(), user, id, targetUserID); err != nil {
+		if errors.Is(err, service.ErrSharePermissionDenied) || errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "akses pengguna berhasil dicabut"})
+}
+
+func (h *DriveHandler) HandleUpdatePublicLink(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	var req model.UpdatePublicLinkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	pl, err := h.driveService.UpdatePublicLink(r.Context(), user, id, req.IsActive, req.Role)
+	if err != nil {
+		if errors.Is(err, service.ErrSharePermissionDenied) || errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, pl)
+}
+
+func (h *DriveHandler) HandleListSharedWithMe(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	q := r.URL.Query().Get("q")
+	res, err := h.driveService.ListSharedWithMe(r.Context(), user, q)
+	if err != nil {
+		if isPermissionDenied(err) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *DriveHandler) HandleGetComments(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	comments, err := h.driveService.GetComments(r.Context(), user, id)
+	if err != nil {
+		if errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, comments)
+}
+
+func (h *DriveHandler) HandleAddComment(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid item ID"})
+		return
+	}
+
+	var req model.CreateCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	comment, err := h.driveService.AddComment(r.Context(), user, id, req.Content)
+	if err != nil {
+		if errors.Is(err, service.ErrAccessDenied) || errors.Is(err, service.ErrSharePermissionDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusCreated, comment)
+}
+
+// =========================================================================
+// PUBLIC SHARE HANDLERS (No Authentication Required)
+// =========================================================================
+
+func (h *DriveHandler) HandleGetPublicSharedItem(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "token is required"})
+		return
+	}
+
+	var parentID *uuid.UUID
+	if parentStr := r.URL.Query().Get("parent_id"); parentStr != "" && parentStr != "null" && parentStr != "root" {
+		if pid, err := uuid.Parse(parentStr); err == nil {
+			parentID = &pid
+		}
+	}
+
+	res, err := h.driveService.GetPublicSharedItem(r.Context(), token, parentID)
+	if err != nil {
+		if errors.Is(err, service.ErrShareNotFound) {
+			WriteJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *DriveHandler) HandlePublicDownload(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		http.Error(w, "token is required", http.StatusBadRequest)
+		return
+	}
+
+	var requestedItemID *uuid.UUID
+	if itemIDStr := r.URL.Query().Get("item_id"); itemIDStr != "" && itemIDStr != "null" {
+		if pid, err := uuid.Parse(itemIDStr); err == nil {
+			requestedItemID = &pid
+		}
+	}
+
+	isZip := r.URL.Query().Get("zip") == "true" || r.URL.Query().Get("zip") == "1"
+
+	if isZip {
+		if err := h.driveService.PublicZipFolder(r.Context(), token, requestedItemID, w); err != nil {
+			if errors.Is(err, service.ErrShareNotFound) {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			http.Error(w, "gagal membuat arsip berkas: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	item, storagePath, err := h.driveService.GetPublicItemFile(r.Context(), token, requestedItemID)
+	if err != nil {
+		if errors.Is(err, service.ErrShareNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, service.ErrAccessDenied) {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		if strings.Contains(err.Error(), "folder tidak dapat diunduh") {
+			if zipErr := h.driveService.PublicZipFolder(r.Context(), token, requestedItemID, w); zipErr != nil {
+				http.Error(w, "gagal membuat arsip berkas: "+zipErr.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	diskFile, err := os.Open(storagePath)
+	if err != nil {
+		http.Error(w, "berkas tidak ditemukan di server", http.StatusNotFound)
+		return
+	}
+	defer diskFile.Close()
+
+	stat, err := diskFile.Stat()
+	if err != nil {
+		http.Error(w, "gagal membaca informasi berkas", http.StatusInternalServerError)
+		return
+	}
+
+	isInline := r.URL.Query().Get("inline") == "true" || r.URL.Query().Get("inline") == "1"
+	disposition := "attachment"
+	if isInline {
+		disposition = "inline"
+	}
+
+	w.Header().Set("Content-Disposition", disposition+`; filename="`+item.Name+`"`)
+	if item.MimeType != "" {
+		w.Header().Set("Content-Type", item.MimeType)
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	http.ServeContent(w, r, item.Name, stat.ModTime(), diskFile)
+}
+
+func (h *DriveHandler) HandleGetPublicComments(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "token is required"})
+		return
+	}
+
+	var requestedItemID *uuid.UUID
+	if itemIDStr := r.URL.Query().Get("item_id"); itemIDStr != "" && itemIDStr != "null" {
+		if pid, err := uuid.Parse(itemIDStr); err == nil {
+			requestedItemID = &pid
+		}
+	}
+
+	comments, err := h.driveService.GetPublicComments(r.Context(), token, requestedItemID)
+	if err != nil {
+		if errors.Is(err, service.ErrShareNotFound) {
+			WriteJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, comments)
+}
+
+func (h *DriveHandler) HandleAddPublicComment(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "token is required"})
+		return
+	}
+
+	var requestedItemID *uuid.UUID
+	if itemIDStr := r.URL.Query().Get("item_id"); itemIDStr != "" && itemIDStr != "null" {
+		if pid, err := uuid.Parse(itemIDStr); err == nil {
+			requestedItemID = &pid
+		}
+	}
+
+	var req model.CreateCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	comment, err := h.driveService.AddPublicComment(r.Context(), token, requestedItemID, req.AuthorName, req.Content)
+	if err != nil {
+		if errors.Is(err, service.ErrShareNotFound) {
+			WriteJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, service.ErrSharePermissionDenied) || errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusCreated, comment)
+}
+
+func (h *DriveHandler) HandlePublicCreateFolder(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "token is required"})
+		return
+	}
+
+	var req CreateFolderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	var parentID *uuid.UUID
+	if req.ParentID != nil && *req.ParentID != "" && *req.ParentID != "null" && *req.ParentID != "root" {
+		if pid, err := uuid.Parse(*req.ParentID); err == nil {
+			parentID = &pid
+		}
+	}
+
+	item, err := h.driveService.PublicCreateFolder(r.Context(), token, parentID, req.Name)
+	if err != nil {
+		if errors.Is(err, service.ErrShareNotFound) {
+			WriteJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, service.ErrSharePermissionDenied) || errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusCreated, item)
+}
+
+func (h *DriveHandler) HandlePublicUpload(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "token is required"})
+		return
+	}
+
+	if err := r.ParseMultipartForm(500 << 20); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "gagal membaca unggahan berkas (maksimum 500MB): " + err.Error()})
+		return
+	}
+
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "berkas 'file' wajib disertakan"})
+		return
+	}
+	defer file.Close()
+
+	var parentID *uuid.UUID
+	if parentStr := r.FormValue("parent_id"); parentStr != "" && parentStr != "null" && parentStr != "root" {
+		if pid, err := uuid.Parse(parentStr); err == nil {
+			parentID = &pid
+		}
+	}
+
+	mimeType := fileHeader.Header.Get("Content-Type")
+	item, err := h.driveService.PublicUploadFile(r.Context(), token, parentID, fileHeader.Filename, file, fileHeader.Size, mimeType)
+	if err != nil {
+		if errors.Is(err, service.ErrShareNotFound) {
+			WriteJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, service.ErrSharePermissionDenied) || errors.Is(err, service.ErrAccessDenied) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusCreated, item)
+}
+

@@ -142,6 +142,12 @@ func CSRFMiddleware() func(http.Handler) http.Handler {
 				return
 			}
 
+			// If public share endpoint, bypass CSRF
+			if strings.HasPrefix(r.URL.Path, "/api/v1/public/share/") {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			sess := GetCurrentSession(r.Context())
 			if sess != nil {
 				// High-throughput chunk streaming endpoint is protected by user session & upload ID

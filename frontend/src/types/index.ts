@@ -113,7 +113,77 @@ export interface DriveItem {
   created_at: string;
   updated_at: string;
   item_count?: number;
+  is_shared?: boolean;
+  share_role?: ShareRole;
+  comments_count?: number;
 }
+
+export type ShareRole = 'viewer' | 'commenter' | 'editor';
+
+export interface DriveShare {
+  id: string;
+  item_id: string;
+  shared_by_user_id: string;
+  shared_with_user_id: string;
+  shared_with_email: string;
+  role: ShareRole;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DrivePublicLink {
+  id: string;
+  item_id: string;
+  created_by_user_id: string;
+  share_token: string;
+  role: ShareRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  url?: string;
+}
+
+export interface DriveComment {
+  id: string;
+  item_id: string;
+  user_id?: string | null;
+  author_name: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ItemShareDetailsResponse {
+  item: DriveItem;
+  is_owner: boolean;
+  can_manage_share: boolean;
+  shares: DriveShare[];
+  public_link?: DrivePublicLink | null;
+}
+
+export interface SharedWithMeItem {
+  item: DriveItem;
+  role: ShareRole;
+  shared_by_email: string;
+  shared_at: string;
+}
+
+export interface SharedWithMeResponse {
+  items: SharedWithMeItem[];
+  total_items: number;
+  breadcrumbs?: DriveBreadcrumb[];
+}
+
+export interface PublicSharedItemResponse {
+  item: DriveItem;
+  role: ShareRole;
+  items?: DriveItem[];
+  breadcrumbs?: DriveBreadcrumb[];
+  comments_count: number;
+  total_items?: number;
+  total_bytes?: number;
+}
+
 
 export interface DriveBreadcrumb {
   id: string | null;

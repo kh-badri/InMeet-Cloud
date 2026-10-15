@@ -58,7 +58,9 @@ func (r *DriveRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid
 		       END AS size_bytes,
 		       d.mime_type, d.storage_path, d.is_trashed, d.trashed_at, d.created_at, d.updated_at,
 		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id AND c.is_trashed = false) AS item_count,
-		       COALESCE(u.email, '') AS owner_email
+		       COALESCE(u.email, '') AS owner_email,
+		       (SELECT EXISTS(SELECT 1 FROM drive_shares s WHERE s.item_id = d.id) OR EXISTS(SELECT 1 FROM drive_public_links pl WHERE pl.item_id = d.id AND pl.is_active = true)) AS is_shared,
+		       (SELECT COUNT(*) FROM drive_comments cm WHERE cm.item_id = d.id) AS comments_count
 		FROM drive_items d
 		LEFT JOIN users u ON d.user_id = u.id
 		WHERE d.id = $1 AND d.user_id = $2
@@ -66,7 +68,7 @@ func (r *DriveRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid
 
 	var item model.DriveItem
 	var itemCount int
-	err := row.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail)
+	err := row.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail, &item.IsShared, &item.CommentsCount)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrDriveItemNotFound
@@ -95,7 +97,9 @@ func (r *DriveRepository) GetByIDAny(ctx context.Context, id uuid.UUID) (*model.
 		       END AS size_bytes,
 		       d.mime_type, d.storage_path, d.is_trashed, d.trashed_at, d.created_at, d.updated_at,
 		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id AND c.is_trashed = false) AS item_count,
-		       COALESCE(u.email, '') AS owner_email
+		       COALESCE(u.email, '') AS owner_email,
+		       (SELECT EXISTS(SELECT 1 FROM drive_shares s WHERE s.item_id = d.id) OR EXISTS(SELECT 1 FROM drive_public_links pl WHERE pl.item_id = d.id AND pl.is_active = true)) AS is_shared,
+		       (SELECT COUNT(*) FROM drive_comments cm WHERE cm.item_id = d.id) AS comments_count
 		FROM drive_items d
 		LEFT JOIN users u ON d.user_id = u.id
 		WHERE d.id = $1
@@ -103,7 +107,7 @@ func (r *DriveRepository) GetByIDAny(ctx context.Context, id uuid.UUID) (*model.
 
 	var item model.DriveItem
 	var itemCount int
-	err := row.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail)
+	err := row.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail, &item.IsShared, &item.CommentsCount)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrDriveItemNotFound
@@ -135,7 +139,9 @@ func (r *DriveRepository) List(ctx context.Context, targetUserID *uuid.UUID, par
 		       END AS size_bytes,
 		       d.mime_type, d.storage_path, d.is_trashed, d.trashed_at, d.created_at, d.updated_at,
 		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id AND c.is_trashed = false) AS item_count,
-		       COALESCE(u.email, '') AS owner_email
+		       COALESCE(u.email, '') AS owner_email,
+		       (SELECT EXISTS(SELECT 1 FROM drive_shares s WHERE s.item_id = d.id) OR EXISTS(SELECT 1 FROM drive_public_links pl WHERE pl.item_id = d.id AND pl.is_active = true)) AS is_shared,
+		       (SELECT COUNT(*) FROM drive_comments cm WHERE cm.item_id = d.id) AS comments_count
 		FROM drive_items d
 		LEFT JOIN users u ON d.user_id = u.id
 	`
@@ -187,7 +193,7 @@ func (r *DriveRepository) List(ctx context.Context, targetUserID *uuid.UUID, par
 	for rows.Next() {
 		var item model.DriveItem
 		var itemCount int
-		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail)
+		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail, &item.IsShared, &item.CommentsCount)
 		if err != nil {
 			return nil, err
 		}
@@ -215,7 +221,9 @@ func (r *DriveRepository) ListTrash(ctx context.Context, targetUserID *uuid.UUID
 		       END AS size_bytes,
 		       d.mime_type, d.storage_path, d.is_trashed, d.trashed_at, d.created_at, d.updated_at,
 		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id) AS item_count,
-		       COALESCE(u.email, '') AS owner_email
+		       COALESCE(u.email, '') AS owner_email,
+		       (SELECT EXISTS(SELECT 1 FROM drive_shares s WHERE s.item_id = d.id) OR EXISTS(SELECT 1 FROM drive_public_links pl WHERE pl.item_id = d.id AND pl.is_active = true)) AS is_shared,
+		       (SELECT COUNT(*) FROM drive_comments cm WHERE cm.item_id = d.id) AS comments_count
 		FROM drive_items d
 		LEFT JOIN users u ON d.user_id = u.id
 	`
@@ -243,7 +251,7 @@ func (r *DriveRepository) ListTrash(ctx context.Context, targetUserID *uuid.UUID
 	for rows.Next() {
 		var item model.DriveItem
 		var itemCount int
-		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail)
+		err := rows.Scan(&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type, &item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt, &item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail, &item.IsShared, &item.CommentsCount)
 		if err != nil {
 			return nil, err
 		}
@@ -665,4 +673,264 @@ func (r *DriveRepository) ListActiveUploadSessions(ctx context.Context, userID u
 		sessions = append(sessions, &s)
 	}
 	return sessions, nil
+}
+
+// =========================================================================
+// SHARING & COMMENTS REPOSITORY METHODS
+// =========================================================================
+
+func (r *DriveRepository) GetSharesByItemID(ctx context.Context, itemID uuid.UUID) ([]*model.DriveShare, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT s.id, s.item_id, s.shared_by_user_id, s.shared_with_user_id, COALESCE(u.email, ''), s.role, s.created_at, s.updated_at
+		FROM drive_shares s
+		JOIN users u ON s.shared_with_user_id = u.id
+		WHERE s.item_id = $1
+		ORDER BY s.created_at ASC
+	`, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var shares []*model.DriveShare
+	for rows.Next() {
+		var s model.DriveShare
+		if err := rows.Scan(&s.ID, &s.ItemID, &s.SharedByUserID, &s.SharedWithUserID, &s.SharedWithEmail, &s.Role, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, err
+		}
+		shares = append(shares, &s)
+	}
+	return shares, nil
+}
+
+func (r *DriveRepository) UpsertUserShare(ctx context.Context, itemID, sharedByUserID, sharedWithUserID uuid.UUID, role model.ShareRole) (*model.DriveShare, error) {
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO drive_shares (item_id, shared_by_user_id, shared_with_user_id, role, updated_at)
+		VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+		ON CONFLICT (item_id, shared_with_user_id)
+		DO UPDATE SET role = EXCLUDED.role, updated_at = CURRENT_TIMESTAMP
+		RETURNING id, item_id, shared_by_user_id, shared_with_user_id, role, created_at, updated_at
+	`, itemID, sharedByUserID, sharedWithUserID, role)
+
+	var s model.DriveShare
+	if err := row.Scan(&s.ID, &s.ItemID, &s.SharedByUserID, &s.SharedWithUserID, &s.Role, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *DriveRepository) DeleteUserShare(ctx context.Context, itemID, sharedWithUserID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		DELETE FROM drive_shares
+		WHERE item_id = $1 AND shared_with_user_id = $2
+	`, itemID, sharedWithUserID)
+	return err
+}
+
+func (r *DriveRepository) GetUserShareRole(ctx context.Context, itemID, userID uuid.UUID) (*model.ShareRole, error) {
+	row := r.pool.QueryRow(ctx, `
+		WITH RECURSIVE ancestors AS (
+			SELECT id, parent_id, 0 AS depth FROM drive_items WHERE id = $1
+			UNION ALL
+			SELECT p.id, p.parent_id, a.depth + 1 FROM drive_items p JOIN ancestors a ON p.id = a.parent_id
+		)
+		SELECT s.role
+		FROM drive_shares s
+		JOIN ancestors a ON s.item_id = a.id
+		WHERE s.shared_with_user_id = $2
+		ORDER BY a.depth ASC
+		LIMIT 1
+	`, itemID, userID)
+
+	var role model.ShareRole
+	if err := row.Scan(&role); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &role, nil
+}
+
+func (r *DriveRepository) GetPublicLinkByItemID(ctx context.Context, itemID uuid.UUID) (*model.DrivePublicLink, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT id, item_id, created_by_user_id, share_token, role, is_active, created_at, updated_at
+		FROM drive_public_links
+		WHERE item_id = $1
+	`, itemID)
+
+	var pl model.DrivePublicLink
+	if err := row.Scan(&pl.ID, &pl.ItemID, &pl.CreatedByUserID, &pl.ShareToken, &pl.Role, &pl.IsActive, &pl.CreatedAt, &pl.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &pl, nil
+}
+
+func (r *DriveRepository) GetPublicLinkByToken(ctx context.Context, token string) (*model.DrivePublicLink, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT id, item_id, created_by_user_id, share_token, role, is_active, created_at, updated_at
+		FROM drive_public_links
+		WHERE share_token = $1 AND is_active = true
+	`, token)
+
+	var pl model.DrivePublicLink
+	if err := row.Scan(&pl.ID, &pl.ItemID, &pl.CreatedByUserID, &pl.ShareToken, &pl.Role, &pl.IsActive, &pl.CreatedAt, &pl.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &pl, nil
+}
+
+func (r *DriveRepository) UpsertPublicLink(ctx context.Context, itemID, createdByUserID uuid.UUID, token string, role model.ShareRole, isActive bool) (*model.DrivePublicLink, error) {
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO drive_public_links (item_id, created_by_user_id, share_token, role, is_active, updated_at)
+		VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+		ON CONFLICT (item_id)
+		DO UPDATE SET role = EXCLUDED.role, is_active = EXCLUDED.is_active, updated_at = CURRENT_TIMESTAMP
+		RETURNING id, item_id, created_by_user_id, share_token, role, is_active, created_at, updated_at
+	`, itemID, createdByUserID, token, role, isActive)
+
+	var pl model.DrivePublicLink
+	if err := row.Scan(&pl.ID, &pl.ItemID, &pl.CreatedByUserID, &pl.ShareToken, &pl.Role, &pl.IsActive, &pl.CreatedAt, &pl.UpdatedAt); err != nil {
+		return nil, err
+	}
+	return &pl, nil
+}
+
+func (r *DriveRepository) CheckItemIsDescendantOf(ctx context.Context, itemID, rootItemID uuid.UUID) (bool, error) {
+	if itemID == rootItemID {
+		return true, nil
+	}
+	row := r.pool.QueryRow(ctx, `
+		WITH RECURSIVE ancestors AS (
+			SELECT id, parent_id FROM drive_items WHERE id = $1
+			UNION ALL
+			SELECT p.id, p.parent_id FROM drive_items p JOIN ancestors a ON p.id = a.parent_id
+		)
+		SELECT EXISTS(SELECT 1 FROM ancestors WHERE id = $2)
+	`, itemID, rootItemID)
+
+	var isDescendant bool
+	if err := row.Scan(&isDescendant); err != nil {
+		return false, err
+	}
+	return isDescendant, nil
+}
+
+func (r *DriveRepository) ListSharedWithUser(ctx context.Context, userID uuid.UUID, query string) ([]*model.SharedWithMeItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT d.id, d.user_id, d.parent_id, d.name, d.type,
+		       CASE 
+		         WHEN d.type = 'folder' THEN (
+		           WITH RECURSIVE folder_tree AS (
+		             SELECT id, size_bytes FROM drive_items WHERE parent_id = d.id AND is_trashed = false
+		             UNION ALL
+		             SELECT child.id, child.size_bytes FROM drive_items child JOIN folder_tree ON child.parent_id = folder_tree.id WHERE child.is_trashed = false
+		           )
+		           SELECT COALESCE(SUM(size_bytes), 0) FROM folder_tree
+		         )
+		         ELSE d.size_bytes
+		       END AS size_bytes,
+		       d.mime_type, d.storage_path, d.is_trashed, d.trashed_at, d.created_at, d.updated_at,
+		       (SELECT COUNT(*) FROM drive_items c WHERE c.parent_id = d.id AND c.is_trashed = false) AS item_count,
+		       COALESCE(u.email, '') AS owner_email,
+		       true AS is_shared,
+		       (SELECT COUNT(*) FROM drive_comments cm WHERE cm.item_id = d.id) AS comments_count,
+		       s.role,
+		       COALESCE(by_u.email, '') AS shared_by_email,
+		       s.created_at AS shared_at
+		FROM drive_shares s
+		JOIN drive_items d ON s.item_id = d.id
+		JOIN users u ON d.user_id = u.id
+		LEFT JOIN users by_u ON s.shared_by_user_id = by_u.id
+		WHERE s.shared_with_user_id = $1 AND d.is_trashed = false
+		  AND ($2 = '' OR d.name ILIKE '%' || $2 || '%')
+		ORDER BY d.type DESC, d.name ASC
+	`, userID, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*model.SharedWithMeItem
+	for rows.Next() {
+		var item model.DriveItem
+		var itemCount int
+		var role model.ShareRole
+		var sharedByEmail string
+		var sharedAt time.Time
+
+		err := rows.Scan(
+			&item.ID, &item.UserID, &item.ParentID, &item.Name, &item.Type,
+			&item.SizeBytes, &item.MimeType, &item.StoragePath, &item.IsTrashed, &item.TrashedAt,
+			&item.CreatedAt, &item.UpdatedAt, &itemCount, &item.OwnerEmail,
+			&item.IsShared, &item.CommentsCount,
+			&role, &sharedByEmail, &sharedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if item.Type == model.DriveItemTypeFolder {
+			item.ItemCount = &itemCount
+		}
+		item.ShareRole = &role
+		results = append(results, &model.SharedWithMeItem{
+			Item:          &item,
+			Role:          role,
+			SharedByEmail: sharedByEmail,
+			SharedAt:      sharedAt,
+		})
+	}
+	return results, nil
+}
+
+func (r *DriveRepository) GetCommentsByItemID(ctx context.Context, itemID uuid.UUID) ([]*model.DriveComment, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, item_id, user_id, author_name, content, created_at, updated_at
+		FROM drive_comments
+		WHERE item_id = $1
+		ORDER BY created_at ASC
+	`, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var comments []*model.DriveComment
+	for rows.Next() {
+		var c model.DriveComment
+		if err := rows.Scan(&c.ID, &c.ItemID, &c.UserID, &c.AuthorName, &c.Content, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
+		comments = append(comments, &c)
+	}
+	return comments, nil
+}
+
+func (r *DriveRepository) CreateComment(ctx context.Context, itemID uuid.UUID, userID *uuid.UUID, authorName, content string) (*model.DriveComment, error) {
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO drive_comments (item_id, user_id, author_name, content)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, item_id, user_id, author_name, content, created_at, updated_at
+	`, itemID, userID, authorName, content)
+
+	var c model.DriveComment
+	if err := row.Scan(&c.ID, &c.ItemID, &c.UserID, &c.AuthorName, &c.Content, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (r *DriveRepository) GetCommentsCountByItemID(ctx context.Context, itemID uuid.UUID) (int, error) {
+	row := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM drive_comments WHERE item_id = $1`, itemID)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }

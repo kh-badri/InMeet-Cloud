@@ -218,6 +218,7 @@ func main() {
 	r.Route("/api/v1/drive", func(r chi.Router) {
 		r.Use(handler.RequireAuth)
 		r.Get("/items", driveHandler.HandleList)
+		r.Get("/shared", driveHandler.HandleListSharedWithMe)
 		r.Post("/folder", driveHandler.HandleCreateFolder)
 		r.Get("/folders", driveHandler.HandleListFolders)
 		r.Post("/upload", driveHandler.HandleUpload)
@@ -230,10 +231,26 @@ func main() {
 		r.Delete("/items/{id}", driveHandler.HandleDelete)
 		r.Patch("/items/{id}", driveHandler.HandleRename)
 		r.Post("/items/{id}/move", driveHandler.HandleMove)
+		r.Get("/items/{id}/share", driveHandler.HandleGetShareDetails)
+		r.Post("/items/{id}/share/users", driveHandler.HandleUpdateUserShare)
+		r.Delete("/items/{id}/share/users/{userId}", driveHandler.HandleRemoveUserShare)
+		r.Put("/items/{id}/share/link", driveHandler.HandleUpdatePublicLink)
+		r.Get("/items/{id}/comments", driveHandler.HandleGetComments)
+		r.Post("/items/{id}/comments", driveHandler.HandleAddComment)
 		r.Get("/trash", driveHandler.HandleListTrash)
 		r.Post("/trash/{id}/restore", driveHandler.HandleRestoreTrash)
 		r.Delete("/trash/{id}", driveHandler.HandlePermanentDeleteTrash)
 		r.Delete("/trash", driveHandler.HandleEmptyTrash)
+	})
+
+	// Public Drive Share routes (Anyone with link, No authentication required)
+	r.Route("/api/v1/public/share", func(r chi.Router) {
+		r.Get("/{token}", driveHandler.HandleGetPublicSharedItem)
+		r.Get("/{token}/download", driveHandler.HandlePublicDownload)
+		r.Get("/{token}/comments", driveHandler.HandleGetPublicComments)
+		r.Post("/{token}/comments", driveHandler.HandleAddPublicComment)
+		r.Post("/{token}/upload", driveHandler.HandlePublicUpload)
+		r.Post("/{token}/folder", driveHandler.HandlePublicCreateFolder)
 	})
 
 	// Dashboard stats & Audit log
