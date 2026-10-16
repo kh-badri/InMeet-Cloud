@@ -180,8 +180,12 @@ func (s *AuthService) ReAuth2FA(ctx context.Context, userID uuid.UUID, code stri
 	}
 
 	if !user.TOTPEnabled || user.TOTPSecret == nil {
-		// If 2FA not enabled, check password? PRD requires 2FA for destructive actions.
-		return errors.New("2FA must be enabled to perform sensitive actions")
+		// If 2FA not enabled, allow account password confirmation
+		match, err := security.ComparePassword(code, user.PasswordHash)
+		if err == nil && match {
+			return nil
+		}
+		return errors.New("masukkan kata sandi akun Anda untuk konfirmasi (atau aktifkan 2FA)")
 	}
 
 	if !security.ValidatePasscode(code, *user.TOTPSecret) {

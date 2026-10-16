@@ -2,9 +2,11 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"backupvault/internal/model"
@@ -208,4 +210,107 @@ func (h *BackupHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		actionMsg = "Backup permanently deleted"
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"message": actionMsg})
+}
+
+type BatchDeleteBackupsRequest struct {
+	BackupIDs []uuid.UUID `json:"backup_ids"`
+	TwoFACode string      `json:"two_fa_code"`
+	Permanent bool        `json:"permanent"`
+}
+
+func (h *BackupHandler) HandleBatchDelete(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if user.Role != model.RoleAdmin || !user.CanDelete {
+		WriteJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden: only admin with delete permission can delete backups"})
+		return
+	}
+
+	var req BatchDeleteBackupsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if req.TwoFACode == "" {
+		req.TwoFACode = r.Header.Get("X-2FA-Code")
+	}
+	if req.TwoFACode == "" {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "kode verifikasi 2FA atau kata sandi diperlukan"})
+		return
+	}
+
+	if len(req.BackupIDs) == 0 {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "tidak ada file backup yang dipilih"})
+		return
+	}
+
+	clientIP := GetClientIP(r)
+	ua := r.UserAgent()
+
+	count, err := h.backupService.BatchDelete(r.Context(), req.BackupIDs, user.ID, req.TwoFACode, req.Permanent, clientIP, ua)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	msg := fmt.Sprintf("%d file backup berhasil dipindahkan ke karantina", count)
+	if req.Permanent {
+		msg = fmt.Sprintf("%d file backup berhasil dihapus permanen", count)
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message":       msg,
+		"deleted_count": count,
+	})
+}
+
+func (h *BackupHandler) HandleBatchDownload(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if user.Role != model.RoleAdmin || !user.CanView {
+		WriteJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden: only admin with view permission can download backups"})
+		return
+	}
+
+	var backupIDs []uuid.UUID
+
+	if r.Method == http.MethodGet {
+		idsParam := r.URL.Query().Get("ids")
+		if idsParam != "" {
+			parts := strings.Split(idsParam, ",")
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if id, err := uuid.Parse(p); err == nil {
+					backupIDs = append(backupIDs, id)
+				}
+			}
+		}
+	} else {
+		var req struct {
+			BackupIDs []uuid.UUID `json:"backup_ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			backupIDs = req.BackupIDs
+		}
+	}
+
+	if len(backupIDs) == 0 {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "tidak ada file backup yang dipilih untuk diunduh"})
+		return
+	}
+
+	clientIP := GetClientIP(r)
+	ua := r.UserAgent()
+
+	if err := h.backupService.BatchZipBackups(r.Context(), backupIDs, user.ID, clientIP, ua, w); err != nil {
+		http.Error(w, "gagal membuat arsip zip backup: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 }

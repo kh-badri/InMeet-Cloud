@@ -193,10 +193,13 @@ func main() {
 		r.Get("/", backupHandler.HandleList)
 		r.Get("/{id}", backupHandler.HandleGet)
 		r.With(handler.RequireAdminWithView).Post("/{id}/download-link", backupHandler.HandleCreateDownloadLink)
+		r.With(handler.RequireAdminWithView).Post("/batch-download", backupHandler.HandleBatchDownload)
+		r.With(handler.RequireAdminWithView).Get("/batch-download", backupHandler.HandleBatchDownload)
 
 		r.Group(func(r chi.Router) {
 			r.Use(handler.RequireAdminWithDelete)
 			r.Delete("/{id}", backupHandler.HandleDelete) // Manual delete (requires 2FA and Admin with delete permission)
+			r.Post("/batch-delete", backupHandler.HandleBatchDelete)
 		})
 	})
 

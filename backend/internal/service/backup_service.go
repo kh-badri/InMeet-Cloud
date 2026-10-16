@@ -1,12 +1,17 @@
 package service
 
 import (
+	"archive/zip"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -183,3 +188,118 @@ func (s *BackupService) GetStats(ctx context.Context, storagePath string) (*mode
 func (s *BackupService) OpenRange(ctx context.Context, path string, offset, length int64) (io.ReadCloser, error) {
 	return s.storage.ReadRange(ctx, path, offset, length)
 }
+
+// BatchDelete deletes or quarantines multiple backups after a single 2FA check
+func (s *BackupService) BatchDelete(ctx context.Context, backupIDs []uuid.UUID, adminID uuid.UUID, twoFACode string, permanent bool, clientIP, userAgent string) (int, error) {
+	if len(backupIDs) == 0 {
+		return 0, errors.New("tidak ada backup yang dipilih")
+	}
+
+	// Re-authenticate 2FA (or password)
+	if err := s.authService.ReAuth2FA(ctx, adminID, twoFACode); err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrReAuthFailed, err)
+	}
+
+	deletedCount := 0
+	for _, id := range backupIDs {
+		backup, err := s.backupRepo.GetByID(ctx, id)
+		if err != nil {
+			continue
+		}
+
+		if permanent {
+			_ = s.storage.Delete(ctx, backup.StoragePath)
+			if err := s.backupRepo.MarkDeleted(ctx, id); err != nil {
+				continue
+			}
+			_ = s.auditRepo.Log(ctx, "user", adminID.String(), "", "backup_permanently_deleted", "backup", id.String(), clientIP, userAgent, map[string]interface{}{
+				"filename": backup.Filename,
+			})
+		} else {
+			if err := s.backupRepo.Quarantine(ctx, id); err != nil {
+				continue
+			}
+			_ = s.auditRepo.Log(ctx, "user", adminID.String(), "", "backup_quarantined", "backup", id.String(), clientIP, userAgent, map[string]interface{}{
+				"filename": backup.Filename,
+			})
+		}
+		deletedCount++
+	}
+
+	return deletedCount, nil
+}
+
+// BatchZipBackups streams a ZIP archive containing all requested backup files
+func (s *BackupService) BatchZipBackups(ctx context.Context, backupIDs []uuid.UUID, adminID uuid.UUID, clientIP, userAgent string, w http.ResponseWriter) error {
+	if len(backupIDs) == 0 {
+		return errors.New("tidak ada backup yang dipilih untuk diunduh")
+	}
+
+	w.Header().Set("Content-Disposition", `attachment; filename="InMeet-Backups-Selection.zip"`)
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
+
+	usedNames := make(map[string]int)
+	downloadedCount := 0
+
+	for _, id := range backupIDs {
+		backup, err := s.backupRepo.GetByID(ctx, id)
+		if err != nil || backup == nil {
+			continue
+		}
+
+		fullPath, err := s.storage.GetFullPath(backup.StoragePath)
+		if err != nil {
+			continue
+		}
+
+		file, err := os.Open(fullPath)
+		if err != nil {
+			continue
+		}
+
+		entryName := deduplicateBackupZipName(backup.Filename, usedNames)
+		fileEntry, err := zipWriter.Create(entryName)
+		if err != nil {
+			_ = file.Close()
+			continue
+		}
+
+		_, _ = io.Copy(fileEntry, file)
+		_ = file.Close()
+		downloadedCount++
+	}
+
+	_ = s.auditRepo.Log(ctx, "user", adminID.String(), "", "backups_batch_downloaded", "backup", "", clientIP, userAgent, map[string]interface{}{
+		"total_requested": len(backupIDs),
+		"total_archived":  downloadedCount,
+	})
+
+	return nil
+}
+
+func deduplicateBackupZipName(filename string, usedNames map[string]int) string {
+	base := filepath.Base(filename)
+	ext := filepath.Ext(base)
+	nameWithoutExt := strings.TrimSuffix(base, ext)
+
+	if usedNames[base] == 0 {
+		usedNames[base] = 1
+		return base
+	}
+
+	count := usedNames[base]
+	for {
+		candidate := fmt.Sprintf("%s (%d)%s", nameWithoutExt, count, ext)
+		if usedNames[candidate] == 0 {
+			usedNames[base] = count + 1
+			usedNames[candidate] = 1
+			return candidate
+		}
+		count++
+	}
+}
+
