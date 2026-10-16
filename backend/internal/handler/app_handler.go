@@ -27,6 +27,7 @@ type CreateAppRequest struct {
 }
 
 type UpdateAppRequest struct {
+	Name          string `json:"name"`
 	DisplayName   string `json:"display_name"`
 	Description   string `json:"description"`
 	RetentionDays int    `json:"retention_days"`
@@ -111,7 +112,7 @@ func (h *AppHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 		actorEmail = user.Email
 	}
 
-	app, err := h.appService.UpdateApp(r.Context(), id, req.DisplayName, req.Description, req.RetentionDays, req.MinKeep, req.IsActive, actorID, actorEmail, GetClientIP(r), r.UserAgent())
+	app, err := h.appService.UpdateApp(r.Context(), id, req.Name, req.DisplayName, req.Description, req.RetentionDays, req.MinKeep, req.IsActive, actorID, actorEmail, GetClientIP(r), r.UserAgent())
 	if err != nil {
 		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -191,3 +192,28 @@ func (h *AppHandler) HandleRevokeKey(w http.ResponseWriter, r *http.Request) {
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "API key revoked successfully"})
 }
+
+func (h *AppHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid application ID"})
+		return
+	}
+
+	user := GetCurrentUser(r.Context())
+	actorID := "anonymous"
+	actorEmail := ""
+	if user != nil {
+		actorID = user.ID.String()
+		actorEmail = user.Email
+	}
+
+	if err := h.appService.DeleteApp(r.Context(), id, actorID, actorEmail, GetClientIP(r), r.UserAgent()); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "Aplikasi berhasil dihapus"})
+}
+

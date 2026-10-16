@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, formatBytes, formatDate } from '../lib/api';
 import { Application, ApiKey } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
 import { 
   Plus, KeyRound, CheckCircle2, AlertTriangle, 
@@ -10,6 +11,10 @@ import {
 
 export const ApplicationsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const canEdit = isAdmin && user?.can_edit !== false;
+  const canDelete = isAdmin && user?.can_delete !== false;
 
   // Modals state
   const [isAddAppOpen, setIsAddAppOpen] = useState(false);
@@ -20,10 +25,14 @@ export const ApplicationsPage: React.FC = () => {
 
   // Edit App state
   const [editingApp, setEditingApp] = useState<Application | null>(null);
+  const [editName, setEditName] = useState('');
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editRetentionDays, setEditRetentionDays] = useState(30);
   const [editMinKeep, setEditMinKeep] = useState(3);
+
+  // Delete App state
+  const [deletingApp, setDeletingApp] = useState<Application | null>(null);
 
   // Form states
   const [appName, setAppName] = useState('');
@@ -81,6 +90,7 @@ export const ApplicationsPage: React.FC = () => {
       return apiRequest(`/api/v1/apps/${editingApp.id}`, {
         method: 'PUT',
         body: JSON.stringify({
+          name: editName,
           display_name: editDisplayName,
           description: editDescription,
           retention_days: editRetentionDays,
@@ -98,8 +108,25 @@ export const ApplicationsPage: React.FC = () => {
     },
   });
 
+  // Delete App Mutation
+  const deleteAppMutation = useMutation({
+    mutationFn: async (appId: string) => {
+      return apiRequest(`/api/v1/apps/${appId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['apps'] });
+      setDeletingApp(null);
+    },
+    onError: (err: any) => {
+      alert(`Gagal menghapus aplikasi: ${err.message}`);
+    },
+  });
+
   const handleOpenEdit = (app: Application) => {
     setEditingApp(app);
+    setEditName(app.name);
     setEditDisplayName(app.display_name);
     setEditDescription(app.description || '');
     setEditRetentionDays(app.retention_days || 30);
@@ -162,12 +189,14 @@ export const ApplicationsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddAppOpen(true)}
-          className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all"
-        >
-          <Plus className="h-4 w-4" /> Tambah Aplikasi
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setIsAddAppOpen(true)}
+            className="flex items-center gap-2 rounded-xl bg-[#FF6701] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-all"
+          >
+            <Plus className="h-4 w-4" /> Tambah Aplikasi
+          </button>
+        )}
       </div>
 
       {/* Applications Grid */}
@@ -260,23 +289,34 @@ export const ApplicationsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Buttons in Equal Grid */}
-              <div className="pt-3 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80 grid grid-cols-2 gap-2">
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]/80 flex items-center gap-2">
                 <button
                   onClick={() => handleOpenEdit(app)}
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors shadow-2xs"
-                  title="Ubah Aturan Retensi"
+                  disabled={!canEdit}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[#92B4EC]/80 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors shadow-2xs disabled:opacity-50"
+                  title="Edit Aplikasi & Aturan Retensi"
                 >
                   <Sliders className="h-3.5 w-3.5 text-[#FEA82F]" />
-                  Ubah Retensi
+                  <span>Edit</span>
                 </button>
                 <button
                   onClick={() => setActiveAppKeys(app)}
-                  className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-3 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-2xs transition-all"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6701] px-3 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-2xs transition-all"
+                  title="Kelola API Key"
                 >
                   <KeyRound className="h-3.5 w-3.5" />
-                  Kelola API Key
+                  <span>API Key</span>
                 </button>
+                {canDelete && (
+                  <button
+                    onClick={() => setDeletingApp(app)}
+                    className="p-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/60 transition-colors shadow-2xs shrink-0"
+                    title="Hapus Aplikasi"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -395,11 +435,11 @@ export const ApplicationsPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Modal Ubah Aturan Retensi & Edit Aplikasi */}
+      {/* Modal Edit Aplikasi & Aturan Retensi */}
       <Modal
         isOpen={!!editingApp}
         onClose={() => setEditingApp(null)}
-        title={`Ubah Aturan Retensi — ${editingApp?.display_name}`}
+        title={`Edit Aplikasi — ${editingApp?.display_name}`}
       >
         <form
           onSubmit={(e) => {
@@ -410,11 +450,30 @@ export const ApplicationsPage: React.FC = () => {
         >
           <div>
             <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              Nama Tampilan Aplikasi
+              Nama Slug (ID Unik)
             </label>
             <input
               type="text"
               required
+              pattern="[a-z0-9_-]+"
+              placeholder="contoh: server-database-utama"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/20 font-mono"
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Gunakan huruf kecil, angka, atau tanda minus (-). Tidak boleh spasi.
+            </p>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              Nama Tampilan (Display Name)
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="Contoh: Database PostgreSQL Utama"
               value={editDisplayName}
               onChange={(e) => setEditDisplayName(e.target.value)}
               className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/20"
@@ -423,10 +482,11 @@ export const ApplicationsPage: React.FC = () => {
 
           <div>
             <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              Deskripsi
+              Deskripsi (Opsional)
             </label>
             <textarea
               rows={2}
+              placeholder="Deskripsi singkat server atau aplikasi ini..."
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               className="w-full rounded-xl border border-[#92B4EC]/80 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:ring-2 focus:ring-[#FF6701]/20 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-100 dark:focus:border-[#FF6500] dark:focus:ring-[#FF6500]/20 resize-none"
@@ -493,6 +553,77 @@ export const ApplicationsPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal Konfirmasi Hapus Aplikasi */}
+      <Modal
+        isOpen={!!deletingApp}
+        onClose={() => setDeletingApp(null)}
+        title="Hapus Aplikasi"
+      >
+        <div className="space-y-4 text-xs">
+          <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+            <div>
+              <p className="font-bold text-sm text-rose-900 dark:text-rose-200">
+                Peringatan Hapus Aplikasi
+              </p>
+              <p className="mt-1 leading-relaxed text-xs">
+                Apakah Anda yakin ingin menghapus aplikasi <strong className="font-bold">{deletingApp?.display_name}</strong> (<code className="font-mono">{deletingApp?.name}</code>)? Tindakan ini tidak dapat dibatalkan.
+              </p>
+            </div>
+          </div>
+
+          {deletingApp && (deletingApp.total_backups || 0) > 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <span className="font-bold flex items-center gap-1.5 mb-1">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Aplikasi masih memiliki file backup:
+              </span>
+              <p className="text-xs">
+                Aplikasi ini memiliki <strong>{deletingApp.total_backups} file backup ({formatBytes(deletingApp.total_bytes || 0)})</strong>. Sesuai perlindungan integritas data, aplikasi yang memiliki riwayat backup aktif tidak dapat dihapus. Hapus data backup terlebih dahulu atau nonaktifkan aplikasi.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-3 space-y-1.5 text-slate-600 dark:text-slate-400">
+              <div className="flex justify-between">
+                <span>Nama Slug (ID Unik):</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{deletingApp?.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Nama Tampilan:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{deletingApp?.display_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>API Key Terkait:</span>
+                <span className="text-slate-700 dark:text-slate-300">Semua API key aplikasi ini akan otomatis dihapus</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2.5 pt-4 border-t border-[#92B4EC]/30 dark:border-[#1E3E62]">
+            <button
+              type="button"
+              onClick={() => setDeletingApp(null)}
+              className="rounded-xl border border-[#92B4EC]/80 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-[#F3F6FD] dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={deleteAppMutation.isPending || ((deletingApp?.total_backups || 0) > 0)}
+              onClick={() => {
+                if (deletingApp) {
+                  deleteAppMutation.mutate(deletingApp.id);
+                }
+              }}
+              className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow-sm transition-all disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {deleteAppMutation.isPending ? 'Menghapus...' : 'Hapus Aplikasi'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Modal Kelola API Key */}

@@ -74,12 +74,28 @@ func (s *AppService) GetApp(ctx context.Context, id uuid.UUID) (*model.Applicati
 	return s.appRepo.GetByID(ctx, id)
 }
 
-func (s *AppService) UpdateApp(ctx context.Context, id uuid.UUID, displayName, description string, retentionDays, minKeep int, isActive bool, actorID, actorEmail, ip, ua string) (*model.Application, error) {
+func (s *AppService) UpdateApp(ctx context.Context, id uuid.UUID, name, displayName, description string, retentionDays, minKeep int, isActive bool, actorID, actorEmail, ip, ua string) (*model.Application, error) {
 	app, err := s.appRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return nil, errors.New("nama slug aplikasi wajib diisi")
+	}
+	if displayName == "" {
+		displayName = name
+	}
+	if retentionDays <= 0 {
+		retentionDays = 30
+	}
+	if minKeep <= 0 {
+		minKeep = 3
+	}
+
+	oldName := app.Name
+	app.Name = name
 	app.DisplayName = displayName
 	app.Description = description
 	app.RetentionDays = retentionDays
@@ -87,11 +103,44 @@ func (s *AppService) UpdateApp(ctx context.Context, id uuid.UUID, displayName, d
 	app.IsActive = isActive
 
 	if err := s.appRepo.Update(ctx, app); err != nil {
+		if errors.Is(err, repository.ErrAppNameDuplicate) {
+			return nil, errors.New("nama slug aplikasi sudah digunakan oleh aplikasi lain")
+		}
 		return nil, err
 	}
 
-	_ = s.auditRepo.Log(ctx, "user", actorID, actorEmail, "app_updated", "application", app.ID.String(), ip, ua, map[string]interface{}{"is_active": isActive})
+	_ = s.auditRepo.Log(ctx, "user", actorID, actorEmail, "app_updated", "application", app.ID.String(), ip, ua, map[string]interface{}{
+		"old_name":     oldName,
+		"new_name":     name,
+		"display_name": displayName,
+		"is_active":    isActive,
+	})
 	return app, nil
+}
+
+func (s *AppService) DeleteApp(ctx context.Context, id uuid.UUID, actorID, actorEmail, ip, ua string) error {
+	app, err := s.appRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	count, err := s.appRepo.CountBackups(ctx, id)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("aplikasi '%s' tidak dapat dihapus karena masih memiliki %d file backup. Hapus file backup terlebih dahulu", app.DisplayName, count)
+	}
+
+	if err := s.appRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	_ = s.auditRepo.Log(ctx, "user", actorID, actorEmail, "app_deleted", "application", id.String(), ip, ua, map[string]interface{}{
+		"name":         app.Name,
+		"display_name": app.DisplayName,
+	})
+	return nil
 }
 
 func (s *AppService) CreateApiKey(ctx context.Context, appID uuid.UUID, name, ipAllowlist string, actorID, actorEmail, ip, ua string) (*model.ApiKey, error) {

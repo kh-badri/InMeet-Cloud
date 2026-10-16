@@ -127,10 +127,13 @@ func (r *AppRepository) Update(ctx context.Context, app *model.Application) erro
 	app.UpdatedAt = time.Now()
 	res, err := r.pool.Exec(ctx, `
 		UPDATE applications
-		SET display_name = $1, description = $2, retention_days = $3, min_keep = $4, is_active = $5, updated_at = $6
-		WHERE id = $7
-	`, app.DisplayName, app.Description, app.RetentionDays, app.MinKeep, app.IsActive, app.UpdatedAt, app.ID)
+		SET name = $1, display_name = $2, description = $3, retention_days = $4, min_keep = $5, is_active = $6, updated_at = $7
+		WHERE id = $8
+	`, app.Name, app.DisplayName, app.Description, app.RetentionDays, app.MinKeep, app.IsActive, app.UpdatedAt, app.ID)
 	if err != nil {
+		if stringsContains(err.Error(), "duplicate key") || stringsContains(err.Error(), "unique constraint") {
+			return ErrAppNameDuplicate
+		}
 		return err
 	}
 	if res.RowsAffected() == 0 {
@@ -139,10 +142,19 @@ func (r *AppRepository) Update(ctx context.Context, app *model.Application) erro
 	return nil
 }
 
+func (r *AppRepository) CountBackups(ctx context.Context, id uuid.UUID) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM backups WHERE application_id = $1`, id).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *AppRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	res, err := r.pool.Exec(ctx, `DELETE FROM applications WHERE id = $1`, id)
 	if err != nil {
-		return fmt.Errorf("failed to delete application (may have existing backups): %w", err)
+		return fmt.Errorf("gagal menghapus aplikasi (kemungkinan masih memiliki backup terkait): %w", err)
 	}
 	if res.RowsAffected() == 0 {
 		return ErrAppNotFound

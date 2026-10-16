@@ -183,6 +183,7 @@ func main() {
 			r.Get("/{id}/keys", appHandler.HandleListKeys)
 			r.Post("/{id}/keys", appHandler.HandleCreateKey)
 		})
+		r.With(handler.RequireAdminWithDelete).Delete("/{id}", appHandler.HandleDelete)
 		r.With(handler.RequireAdminWithDelete).Delete("/{id}/keys/{keyId}", appHandler.HandleRevokeKey)
 	})
 
