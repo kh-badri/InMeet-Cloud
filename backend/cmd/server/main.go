@@ -241,7 +241,17 @@ func main() {
 		r.Post("/trash/{id}/restore", driveHandler.HandleRestoreTrash)
 		r.Delete("/trash/{id}", driveHandler.HandlePermanentDeleteTrash)
 		r.Delete("/trash", driveHandler.HandleEmptyTrash)
+
+		// Batch operations (Multi-selection actions)
+		r.Get("/batch/download", driveHandler.HandleBatchDownload)
+		r.Post("/batch/download", driveHandler.HandleBatchDownload)
+		r.Post("/batch/move", driveHandler.HandleBatchMove)
+		r.Post("/batch/delete", driveHandler.HandleBatchDelete)
+		r.Post("/batch/share/users", driveHandler.HandleBatchShareUsers)
+		r.Post("/batch/trash/restore", driveHandler.HandleBatchTrashRestore)
+		r.Post("/batch/trash/permanent", driveHandler.HandleBatchTrashPermanentDelete)
 	})
+
 
 	// Public Drive Share routes (Anyone with link, No authentication required)
 	r.Route("/api/v1/public/share", func(r chi.Router) {

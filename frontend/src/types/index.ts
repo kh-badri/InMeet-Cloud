@@ -224,4 +224,11 @@ export interface DriveUploadSession {
   updated_at: string;
 }
 
+export interface BatchOperationResult {
+  success_count: number;
+  fail_count: number;
+  errors?: string[];
+}
+
+
 

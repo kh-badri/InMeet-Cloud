@@ -1081,3 +1081,205 @@ func (h *DriveHandler) HandlePublicUpload(w http.ResponseWriter, r *http.Request
 	WriteJSON(w, http.StatusCreated, item)
 }
 
+// =========================================================================
+// BATCH OPERATIONS HANDLERS
+// =========================================================================
+
+func (h *DriveHandler) HandleBatchDownload(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var itemIDs []uuid.UUID
+
+	if r.Method == http.MethodGet {
+		idsParam := r.URL.Query().Get("ids")
+		if idsParam != "" {
+			parts := strings.Split(idsParam, ",")
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if id, err := uuid.Parse(p); err == nil {
+					itemIDs = append(itemIDs, id)
+				}
+			}
+		}
+	} else {
+		var req model.BatchOperationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			itemIDs = req.ItemIDs
+		}
+	}
+
+	if len(itemIDs) == 0 {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "tidak ada item yang dipilih untuk diunduh"})
+		return
+	}
+
+	if err := h.driveService.BatchZipItems(r.Context(), user, itemIDs, w); err != nil {
+		if isPermissionDenied(err) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		http.Error(w, "gagal membuat arsip zip: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *DriveHandler) HandleBatchMove(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.BatchMoveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "format data tidak valid"})
+		return
+	}
+
+	if len(req.ItemIDs) == 0 {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "tidak ada item yang dipilih untuk dipindahkan"})
+		return
+	}
+
+	res, err := h.driveService.BatchMoveItems(r.Context(), user, req.ItemIDs, req.TargetParentID)
+	if err != nil {
+		if isPermissionDenied(err) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *DriveHandler) HandleBatchDelete(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.BatchOperationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "format data tidak valid"})
+		return
+	}
+
+	if len(req.ItemIDs) == 0 {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "tidak ada item yang dipilih untuk dihapus"})
+		return
+	}
+
+	res, err := h.driveService.BatchDeleteItems(r.Context(), user, req.ItemIDs)
+	if err != nil {
+		if isPermissionDenied(err) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *DriveHandler) HandleBatchTrashRestore(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.BatchOperationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "format data tidak valid"})
+		return
+	}
+
+	if len(req.ItemIDs) == 0 {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "tidak ada item yang dipilih untuk dipulihkan"})
+		return
+	}
+
+	res, err := h.driveService.BatchTrashRestore(r.Context(), user, req.ItemIDs)
+	if err != nil {
+		if isPermissionDenied(err) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *DriveHandler) HandleBatchTrashPermanentDelete(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.BatchOperationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "format data tidak valid"})
+		return
+	}
+
+	if len(req.ItemIDs) == 0 {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "tidak ada item yang dipilih untuk dihapus permanen"})
+		return
+	}
+
+	res, err := h.driveService.BatchTrashPermanentDelete(r.Context(), user, req.ItemIDs)
+	if err != nil {
+		if isPermissionDenied(err) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *DriveHandler) HandleBatchShareUsers(w http.ResponseWriter, r *http.Request) {
+	user := GetCurrentUser(r.Context())
+	if user == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	var req model.BatchShareUsersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "format data tidak valid"})
+		return
+	}
+
+	if len(req.ItemIDs) == 0 {
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "tidak ada item yang dipilih untuk dibagikan"})
+		return
+	}
+
+	res, err := h.driveService.BatchShareUsers(r.Context(), user, req.ItemIDs, req.Email, req.Role)
+	if err != nil {
+		if isPermissionDenied(err) {
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, res)
+}
+
+

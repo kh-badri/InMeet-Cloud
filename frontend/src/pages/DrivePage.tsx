@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, formatBytes, formatDate } from '../lib/api';
-import { DriveItem, DriveListResponse, DriveFolderTreeItem, User as UserModel, SharedWithMeResponse } from '../types';
+import { DriveItem, DriveListResponse, DriveFolderTreeItem, User as UserModel, SharedWithMeResponse, BatchOperationResult } from '../types';
 import { useDriveUpload } from '../context/DriveUploadContext';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
@@ -26,18 +26,20 @@ interface HierarchicalFolder {
 
 function buildFolderHierarchy(
   folders: DriveFolderTreeItem[],
-  moveTarget: DriveItem | null
+  moveTargets: DriveItem[]
 ): HierarchicalFolder[] {
   const forbiddenIds = new Set<string>();
-  if (moveTarget && moveTarget.type === 'folder') {
-    forbiddenIds.add(moveTarget.id);
-    const queue = [moveTarget.id];
-    while (queue.length > 0) {
-      const parentId = queue.shift()!;
-      const children = folders.filter((f) => f.parent_id === parentId);
-      for (const child of children) {
-        forbiddenIds.add(child.id);
-        queue.push(child.id);
+  for (const target of moveTargets) {
+    if (target && target.type === 'folder') {
+      forbiddenIds.add(target.id);
+      const queue = [target.id];
+      while (queue.length > 0) {
+        const parentId = queue.shift()!;
+        const children = folders.filter((f) => f.parent_id === parentId);
+        for (const child of children) {
+          forbiddenIds.add(child.id);
+          queue.push(child.id);
+        }
       }
     }
   }
@@ -79,6 +81,9 @@ export const DrivePage: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterUserId, setFilterUserId] = useState<string>('all');
 
+  // Multi-selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Modals state
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -93,9 +98,22 @@ export const DrivePage: React.FC = () => {
   const [shareTarget, setShareTarget] = useState<DriveItem | null>(null);
   const [commentsTarget, setCommentsTarget] = useState<DriveItem | null>(null);
 
+  // Batch Modals state
+  const [isBatchMoveOpen, setIsBatchMoveOpen] = useState(false);
+  const [isBatchDeleteOpen, setIsBatchDeleteOpen] = useState(false);
+  const [isBatchPermanentDeleteOpen, setIsBatchPermanentDeleteOpen] = useState(false);
+  const [isBatchShareOpen, setIsBatchShareOpen] = useState(false);
+  const [batchShareEmail, setBatchShareEmail] = useState('');
+  const [batchShareRole, setBatchShareRole] = useState<'viewer' | 'commenter' | 'editor'>('viewer');
+
   // 3-dots actions menu dropdown state
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Clear multi-selection on tab or folder change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [currentFolderId, activeTab]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -106,10 +124,13 @@ export const DrivePage: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setActiveMenuId(null);
+        if (selectedIds.size > 0 && !isBatchMoveOpen && !isBatchDeleteOpen && !isBatchShareOpen && !isBatchPermanentDeleteOpen && !deleteTarget && !moveTarget && !renameTarget && !previewItem) {
+          setSelectedIds(new Set());
+        }
       }
     };
 
-    if (activeMenuId) {
+    if (activeMenuId || selectedIds.size > 0) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
     }
@@ -117,12 +138,13 @@ export const DrivePage: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [activeMenuId]);
+  }, [activeMenuId, selectedIds.size, isBatchMoveOpen, isBatchDeleteOpen, isBatchShareOpen, isBatchPermanentDeleteOpen, deleteTarget, moveTarget, renameTarget, previewItem]);
 
   // Upload state
   const [isDragOver, setIsDragOver] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
 
   // Team users query for Admin & Viewer filtering
   const { data: teamUsers } = useQuery<UserModel[]>({
@@ -332,7 +354,7 @@ export const DrivePage: React.FC = () => {
       const qs = params.toString() ? `?${params.toString()}` : '';
       return apiRequest<DriveFolderTreeItem[]>(`/api/v1/drive/folders${qs}`);
     },
-    enabled: !!moveTarget,
+    enabled: !!moveTarget || isBatchMoveOpen,
   });
 
   // Move Item Mutation
@@ -462,6 +484,187 @@ export const DrivePage: React.FC = () => {
   const filteredTrashItems = trashItems.filter((item) =>
     !debouncedSearch || item.name.toLowerCase().includes(debouncedSearch.toLowerCase())
   );
+
+  // Multi-selection computed values and helper functions
+  const currentVisibleItems =
+    activeTab === 'trash'
+      ? filteredTrashItems
+      : activeTab === 'shared'
+      ? (sharedData?.items?.map((si) => si.item) || [])
+      : (data?.items || []);
+
+  const isSelected = (id: string) => selectedIds.has(id);
+
+  const toggleSelectItem = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === currentVisibleItems.length && currentVisibleItems.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(currentVisibleItems.map((i) => i.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const isAllSelected =
+    currentVisibleItems.length > 0 && selectedIds.size === currentVisibleItems.length;
+  const isPartiallySelected =
+    selectedIds.size > 0 && selectedIds.size < currentVisibleItems.length;
+
+  const selectedItemsList = currentVisibleItems.filter((i) => selectedIds.has(i.id));
+
+  // Batch Mutations & Handlers
+  const handleBatchDownload = () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds).join(',');
+    const downloadUrl = `/api/v1/drive/batch/download?ids=${ids}`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `InMeet-Drive-Selection-${selectedIds.size}-items.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const batchMoveMutation = useMutation({
+    mutationFn: ({
+      itemIds,
+      targetParentId,
+    }: {
+      itemIds: string[];
+      targetParentId: string | null;
+    }) => {
+      return apiRequest<BatchOperationResult>('/api/v1/drive/batch/move', {
+        method: 'POST',
+        body: JSON.stringify({
+          item_ids: itemIds,
+          target_parent_id: targetParentId,
+        }),
+      });
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      setIsBatchMoveOpen(false);
+      clearSelection();
+      setActionSuccess(
+        `Berhasil memindahkan ${res.success_count} item terpilih${
+          res.fail_count > 0 ? ` (${res.fail_count} gagal)` : ''
+        }!`
+      );
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal memindahkan item');
+    },
+  });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: (itemIds: string[]) => {
+      return apiRequest<BatchOperationResult>('/api/v1/drive/batch/delete', {
+        method: 'POST',
+        body: JSON.stringify({ item_ids: itemIds }),
+      });
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-trash'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-summary'] });
+      setIsBatchDeleteOpen(false);
+      clearSelection();
+      setActionSuccess(
+        `Berhasil memindahkan ${res.success_count} item ke Kotak Sampah (Karantina 7 hari)!`
+      );
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal memindahkan item ke sampah');
+    },
+  });
+
+  const batchRestoreMutation = useMutation({
+    mutationFn: (itemIds: string[]) => {
+      return apiRequest<BatchOperationResult>('/api/v1/drive/batch/trash/restore', {
+        method: 'POST',
+        body: JSON.stringify({ item_ids: itemIds }),
+      });
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-trash'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-summary'] });
+      clearSelection();
+      setActionSuccess(`Berhasil memulihkan ${res.success_count} item ke Drive Saya!`);
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal memulihkan item');
+    },
+  });
+
+  const batchPermanentDeleteMutation = useMutation({
+    mutationFn: (itemIds: string[]) => {
+      return apiRequest<BatchOperationResult>('/api/v1/drive/batch/trash/permanent', {
+        method: 'POST',
+        body: JSON.stringify({ item_ids: itemIds }),
+      });
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['drive-trash'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-summary'] });
+      setIsBatchPermanentDeleteOpen(false);
+      clearSelection();
+      setActionSuccess(`Berhasil menghapus permanen ${res.success_count} item!`);
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal menghapus item permanen');
+    },
+  });
+
+  const batchShareMutation = useMutation({
+    mutationFn: ({
+      itemIds,
+      email,
+      role,
+    }: {
+      itemIds: string[];
+      email: string;
+      role: 'viewer' | 'commenter' | 'editor';
+    }) => {
+      return apiRequest<BatchOperationResult>('/api/v1/drive/batch/share/users', {
+        method: 'POST',
+        body: JSON.stringify({
+          item_ids: itemIds,
+          email,
+          role,
+        }),
+      });
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['drive-items'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-shared'] });
+      setIsBatchShareOpen(false);
+      const email = batchShareEmail;
+      setBatchShareEmail('');
+      clearSelection();
+      setActionSuccess(`Berhasil membagikan ${res.success_count} item kepada ${email}!`);
+    },
+    onError: (err: any) => {
+      setActionError(err.message || 'Gagal membagikan item');
+    },
+  });
+
 
   if (!canView) {
     return (
@@ -871,6 +1074,41 @@ export const DrivePage: React.FC = () => {
               )}
             </div>
 
+            {currentVisibleItems.length > 0 && (
+              <button
+                type="button"
+                onClick={selectAll}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                  isAllSelected
+                    ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                    : selectedIds.size > 0
+                    ? 'border-[#FF6701] bg-orange-50 text-[#FF6701] dark:border-[#FF6500] dark:bg-[#1E3E62] dark:text-[#FF6500]'
+                    : 'border-[#92B4EC] bg-white text-slate-700 hover:bg-slate-100 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-200'
+                }`}
+                title={isAllSelected ? 'Batalkan pilihan' : 'Pilih semua item'}
+              >
+                <div
+                  className={`flex h-3.5 w-3.5 items-center justify-center rounded-xs border transition-colors ${
+                    isAllSelected
+                      ? 'border-white bg-white text-[#FF6701]'
+                      : isPartiallySelected
+                      ? 'border-[#FF6701] bg-[#FF6701] text-white'
+                      : 'border-slate-400 bg-transparent'
+                  }`}
+                >
+                  {isAllSelected && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                  {isPartiallySelected && <div className="h-1 w-1.5 bg-white rounded-xs" />}
+                </div>
+                <span>
+                  {isAllSelected
+                    ? 'Semua Dipilih'
+                    : selectedIds.size > 0
+                    ? `${selectedIds.size} Dipilih`
+                    : 'Pilih Semua'}
+                </span>
+              </button>
+            )}
+
             <div className="flex items-center rounded-xl border border-[#92B4EC] dark:border-[#1E3E62] p-0.5 bg-slate-50 dark:bg-[#000000]">
               <button
                 onClick={() => setViewMode('grid')}
@@ -989,10 +1227,29 @@ export const DrivePage: React.FC = () => {
                 return (
                   <div
                     key={item.id}
-                    className="group relative flex flex-col justify-between rounded-2xl border border-[#92B4EC] bg-white p-3.5 dark:border-[#1E3E62] dark:bg-[#0B192C] shadow-xs hover:border-[#FF6701] dark:hover:border-[#FF6500] transition-colors"
+                    className={`group relative flex flex-col justify-between rounded-2xl border p-3.5 shadow-xs transition-colors ${
+                      isSelected(item.id)
+                        ? 'border-[#FF6701] bg-orange-50/40 ring-2 ring-[#FF6701]/40 dark:border-[#FF6500] dark:bg-[#1E3E62]/50'
+                        : 'border-[#92B4EC] bg-white hover:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500]'
+                    }`}
                   >
+                    {/* Checkbox */}
+                    <div
+                      onClick={(e) => toggleSelectItem(item.id, e)}
+                      className={`absolute top-3.5 left-3.5 z-20 flex h-5 w-5 items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs ${
+                        isSelected(item.id)
+                          ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                          : selectedIds.size > 0
+                          ? 'border-slate-300 bg-white/95 hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                          : 'border-slate-300 bg-white/95 opacity-0 group-hover:opacity-100 hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                      }`}
+                      title={isSelected(item.id) ? 'Batalkan pilihan' : 'Pilih item'}
+                    >
+                      {isSelected(item.id) && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                    </div>
+
                     <div>
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-2 pl-7">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FEA82F]/15 dark:bg-[#1E3E62]">
                           {getFileIcon(item)}
                         </div>
@@ -1070,6 +1327,25 @@ export const DrivePage: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead className="border-b border-[#92B4EC]/40 bg-slate-50/50 dark:border-[#1E3E62] dark:bg-[#000000] text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold">
                     <tr>
+                      <th className="w-10 px-4 py-3">
+                        <div
+                          onClick={selectAll}
+                          className={`flex h-4 w-4 items-center justify-center rounded border transition-colors cursor-pointer ${
+                            isAllSelected
+                              ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                              : isPartiallySelected
+                              ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                              : 'border-slate-300 bg-white hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                          }`}
+                          title={isAllSelected ? 'Batalkan semua' : 'Pilih semua'}
+                        >
+                          {isAllSelected ? (
+                            <Check className="h-3 w-3 stroke-[3]" />
+                          ) : isPartiallySelected ? (
+                            <div className="h-1 w-1.5 bg-white rounded-xs" />
+                          ) : null}
+                        </div>
+                      </th>
                       <th className="px-4 py-3">Nama Berkas / Folder</th>
                       {isAdminOrViewer && filterUserId === 'all' && (
                         <th className="px-4 py-3">Pemilik</th>
@@ -1089,8 +1365,24 @@ export const DrivePage: React.FC = () => {
                       return (
                         <tr
                           key={item.id}
-                          className="hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30 transition-colors"
+                          className={`transition-colors ${
+                            isSelected(item.id)
+                              ? 'bg-orange-50/50 dark:bg-[#1E3E62]/40'
+                              : 'hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30'
+                          }`}
                         >
+                          <td className="w-10 px-4 py-3">
+                            <div
+                              onClick={(e) => toggleSelectItem(item.id, e)}
+                              className={`flex h-4 w-4 items-center justify-center rounded border transition-colors cursor-pointer ${
+                                isSelected(item.id)
+                                  ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                                  : 'border-slate-300 bg-white hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                              }`}
+                            >
+                              {isSelected(item.id) && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2.5">
                               <div className="shrink-0">{getFileIcon(item)}</div>
@@ -1340,11 +1632,28 @@ export const DrivePage: React.FC = () => {
                       key={folder.id}
                       onClick={() => setCurrentFolderId(folder.id)}
                       className={`group relative flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer shadow-xs ${
-                        isMenuOpen
+                        isSelected(folder.id)
+                          ? 'border-[#FF6701] bg-orange-50/40 ring-2 ring-[#FF6701]/40 dark:border-[#FF6500] dark:bg-[#1E3E62]/50'
+                          : isMenuOpen
                           ? 'border-[#FF6701] bg-orange-50/30 ring-1 ring-[#FF6701]/30 dark:border-[#FF6500] dark:bg-[#1E3E62]/40'
                           : 'border-slate-200 bg-white hover:border-[#FF6701] hover:shadow-md dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500]'
                       }`}
                     >
+                      {/* Checkbox button */}
+                      <div
+                        onClick={(e) => toggleSelectItem(folder.id, e)}
+                        className={`mr-2.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border transition-all ${
+                          isSelected(folder.id)
+                            ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                            : selectedIds.size > 0
+                            ? 'border-slate-300 bg-white hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                            : 'border-slate-300 bg-white opacity-0 group-hover:opacity-100 hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                        }`}
+                        title={isSelected(folder.id) ? 'Batalkan pilihan' : 'Pilih folder'}
+                      >
+                        {isSelected(folder.id) && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                      </div>
+
                       {/* Left: Folder Icon & Details */}
                       <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FEA82F]/15 text-[#FF6701] dark:bg-[#1E3E62] dark:text-[#FF6500] group-hover:scale-105 transition-transform">
@@ -1524,8 +1833,27 @@ export const DrivePage: React.FC = () => {
                   return (
                     <div
                       key={file.id}
-                      className="group relative flex flex-col justify-between rounded-2xl border border-[#92B4EC] bg-white p-3 hover:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500] transition-colors shadow-xs"
+                      className={`group relative flex flex-col justify-between rounded-2xl border p-3 transition-colors shadow-xs ${
+                        isSelected(file.id)
+                          ? 'border-[#FF6701] bg-orange-50/40 ring-2 ring-[#FF6701]/40 dark:border-[#FF6500] dark:bg-[#1E3E62]/50'
+                          : 'border-[#92B4EC] bg-white hover:border-[#FF6701] dark:border-[#1E3E62] dark:bg-[#0B192C] dark:hover:border-[#FF6500]'
+                      }`}
                     >
+                      {/* Checkbox button */}
+                      <div
+                        onClick={(e) => toggleSelectItem(file.id, e)}
+                        className={`absolute top-4 left-4 z-20 flex h-5 w-5 items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs ${
+                          isSelected(file.id)
+                            ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                            : selectedIds.size > 0
+                            ? 'border-slate-300 bg-white/95 hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                            : 'border-slate-300 bg-white/95 opacity-0 group-hover:opacity-100 hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                        }`}
+                        title={isSelected(file.id) ? 'Batalkan pilihan' : 'Pilih berkas'}
+                      >
+                        {isSelected(file.id) && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                      </div>
+
                       {/* File preview thumbnail or icon */}
                       <div
                         onClick={() => {
@@ -1708,6 +2036,25 @@ export const DrivePage: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead className="border-b border-[#92B4EC]/40 bg-slate-50/50 dark:border-[#1E3E62] dark:bg-[#000000] text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold">
                     <tr>
+                      <th className="w-10 px-4 py-3">
+                        <div
+                          onClick={selectAll}
+                          className={`flex h-4 w-4 items-center justify-center rounded border transition-colors cursor-pointer ${
+                            isAllSelected
+                              ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                              : isPartiallySelected
+                              ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                              : 'border-slate-300 bg-white hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                          }`}
+                          title={isAllSelected ? 'Batalkan semua' : 'Pilih semua'}
+                        >
+                          {isAllSelected ? (
+                            <Check className="h-3 w-3 stroke-[3]" />
+                          ) : isPartiallySelected ? (
+                            <div className="h-1 w-1.5 bg-white rounded-xs" />
+                          ) : null}
+                        </div>
+                      </th>
                       <th className="px-4 py-3">Nama Berkas / Folder</th>
                       {isAdminOrViewer && filterUserId === 'all' && (
                         <th className="px-4 py-3">Pemilik</th>
@@ -1723,8 +2070,24 @@ export const DrivePage: React.FC = () => {
                     {folders.map((folder) => (
                       <tr
                         key={folder.id}
-                        className="hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30 transition-colors bg-[#FEA82F]/5 dark:bg-[#1E3E62]/10"
+                        className={`transition-colors ${
+                          isSelected(folder.id)
+                            ? 'bg-orange-50/50 dark:bg-[#1E3E62]/40'
+                            : 'hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30 bg-[#FEA82F]/5 dark:bg-[#1E3E62]/10'
+                        }`}
                       >
+                        <td className="w-10 px-4 py-3">
+                          <div
+                            onClick={(e) => toggleSelectItem(folder.id, e)}
+                            className={`flex h-4 w-4 items-center justify-center rounded border transition-colors cursor-pointer ${
+                              isSelected(folder.id)
+                                ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                                : 'border-slate-300 bg-white hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                            }`}
+                          >
+                            {isSelected(folder.id) && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <div
                             onClick={() => setCurrentFolderId(folder.id)}
@@ -1865,8 +2228,24 @@ export const DrivePage: React.FC = () => {
                     {files.map((file) => (
                       <tr
                         key={file.id}
-                        className="hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30 transition-colors"
+                        className={`transition-colors ${
+                          isSelected(file.id)
+                            ? 'bg-orange-50/50 dark:bg-[#1E3E62]/40'
+                            : 'hover:bg-[#92B4EC]/10 dark:hover:bg-[#1E3E62]/30'
+                        }`}
                       >
+                        <td className="w-10 px-4 py-3">
+                          <div
+                            onClick={(e) => toggleSelectItem(file.id, e)}
+                            className={`flex h-4 w-4 items-center justify-center rounded border transition-colors cursor-pointer ${
+                              isSelected(file.id)
+                                ? 'border-[#FF6701] bg-[#FF6701] text-white dark:border-[#FF6500] dark:bg-[#FF6500]'
+                                : 'border-slate-300 bg-white hover:border-[#FF6701] dark:border-slate-600 dark:bg-slate-800'
+                            }`}
+                          >
+                            {isSelected(file.id) && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className="shrink-0">{getFileIcon(file)}</div>
@@ -2016,6 +2395,115 @@ export const DrivePage: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Floating Batch Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[95%] max-w-2xl animate-in slide-in-from-bottom-5 fade-in duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-300 bg-white/95 p-3 shadow-2xl backdrop-blur-md dark:border-[#1E3E62] dark:bg-[#0B192C]/95 dark:shadow-black/50">
+            {/* Left: Badge & Count */}
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FF6701] text-white font-bold text-xs shadow-xs">
+                {selectedIds.size}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  {selectedIds.size} item terpilih
+                </span>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <button
+                    onClick={selectAll}
+                    className="text-[#FF6701] hover:underline font-semibold dark:text-[#FEA82F]"
+                  >
+                    {isAllSelected ? 'Batalkan Semua' : 'Pilih Semua'}
+                  </button>
+                  <span className="text-slate-300 dark:text-slate-600">•</span>
+                  <button
+                    onClick={clearSelection}
+                    className="text-slate-500 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-white"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Actions */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {activeTab === 'trash' ? (
+                <>
+                  {(canDelete || canEdit) && (
+                    <button
+                      onClick={() => batchRestoreMutation.mutate(Array.from(selectedIds))}
+                      disabled={batchRestoreMutation.isPending}
+                      className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-3 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white shadow-xs transition-colors disabled:opacity-50"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 text-white" />
+                      <span>Pulihkan ({selectedIds.size})</span>
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => setIsBatchPermanentDeleteOpen(true)}
+                      className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 shadow-xs transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-white" />
+                      <span>Hapus Permanen ({selectedIds.size})</span>
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Download ZIP */}
+                  <button
+                    onClick={handleBatchDownload}
+                    title="Unduh semua item terpilih dalam 1 arsip ZIP"
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-[#1E3E62] dark:bg-[#1E3E62]/40 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5 text-blue-500" />
+                    <span>Unduh ZIP</span>
+                  </button>
+
+                  {/* Move */}
+                  {canEdit && (
+                    <button
+                      onClick={() => {
+                        setSelectedDestinationId(currentFolderId);
+                        setIsBatchMoveOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-[#1E3E62] dark:bg-[#1E3E62]/40 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                    >
+                      <FolderSymlink className="h-3.5 w-3.5 text-indigo-500" />
+                      <span>Pindahkan</span>
+                    </button>
+                  )}
+
+                  {/* Share */}
+                  {canEdit && (
+                    <button
+                      onClick={() => setIsBatchShareOpen(true)}
+                      className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-[#1E3E62] dark:bg-[#1E3E62]/40 dark:text-slate-200 dark:hover:bg-[#1E3E62] transition-colors"
+                    >
+                      <Share2 className="h-3.5 w-3.5 text-[#FF6701]" />
+                      <span>Bagikan</span>
+                    </button>
+                  )}
+
+                  {/* Delete (Move to Trash) */}
+                  {canDelete && (
+                    <button
+                      onClick={() => setIsBatchDeleteOpen(true)}
+                      className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 shadow-xs transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-white" />
+                      <span>Hapus ({selectedIds.size})</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -2351,7 +2839,7 @@ export const DrivePage: React.FC = () => {
 
               {/* Hierarchical Folder list */}
               {allFolders &&
-                buildFolderHierarchy(allFolders, moveTarget).map((f) => {
+                buildFolderHierarchy(allFolders, [moveTarget]).map((f) => {
                   const isCurrentParent = moveTarget.parent_id === f.id;
                   const isSelected = selectedDestinationId === f.id;
                   const isDisabled = f.isDisabled;
@@ -2411,6 +2899,279 @@ export const DrivePage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* MODAL: Pindahkan Beberapa Item Sekaligus */}
+      <Modal
+        isOpen={isBatchMoveOpen}
+        onClose={() => setIsBatchMoveOpen(false)}
+        title={`Pindahkan ${selectedIds.size} Item Terpilih`}
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-3 dark:border-[#1E3E62] dark:bg-[#000000]">
+            <div className="flex items-center gap-2">
+              <FolderSymlink className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                {selectedIds.size} item terpilih untuk dipindahkan
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              Pilih folder tujuan untuk memindahkan seluruh item ini:
+            </p>
+          </div>
+
+          {/* Folder Destination Selector */}
+          <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+            {/* Root / Drive Saya */}
+            <button
+              type="button"
+              onClick={() => setSelectedDestinationId(null)}
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold transition-colors ${
+                selectedDestinationId === null
+                  ? 'border border-[#FF6701] bg-[#FF6701]/10 text-[#FF6701] dark:border-[#FF6500] dark:bg-[#1E3E62] dark:text-[#FF6500]'
+                  : 'border border-[#92B4EC]/50 bg-white hover:bg-[#92B4EC]/15 text-slate-700 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Home className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+                <span>Drive Saya (Folder Utama)</span>
+              </div>
+              {currentFolderId === null && (
+                <span className="text-[10px] text-slate-400 font-normal">(Lokasi Saat Ini)</span>
+              )}
+            </button>
+
+            {/* Hierarchical Folder list */}
+            {allFolders &&
+              buildFolderHierarchy(allFolders, selectedItemsList).map((f) => {
+                const isSelected = selectedDestinationId === f.id;
+                const isDisabled = f.isDisabled;
+
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => setSelectedDestinationId(f.id)}
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                      isDisabled
+                        ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'
+                        : isSelected
+                        ? 'border border-[#FF6701] bg-[#FF6701]/10 text-[#FF6701] dark:border-[#FF6500] dark:bg-[#1E3E62] dark:text-[#FF6500] font-bold'
+                        : 'border border-[#92B4EC]/40 bg-white hover:bg-[#92B4EC]/15 text-slate-700 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-300'
+                    }`}
+                    style={{ paddingLeft: `${Math.max(12, f.depth * 16 + 12)}px` }}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Folder className="h-3.5 w-3.5 text-[#FF6701] dark:text-[#FF6500] shrink-0" fill="currentColor" />
+                      <span className="truncate">{f.name}</span>
+                    </div>
+                    {isDisabled ? (
+                      <span className="text-[10px] text-slate-400 font-normal shrink-0">(Termasuk Item Terpilih)</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-[#92B4EC]/40 dark:border-[#1E3E62]">
+            <button
+              type="button"
+              onClick={() => setIsBatchMoveOpen(false)}
+              className="rounded-xl border border-[#92B4EC] px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-[#92B4EC]/15 dark:border-[#1E3E62] dark:text-slate-300"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={batchMoveMutation.isPending}
+              onClick={() => {
+                batchMoveMutation.mutate({
+                  itemIds: Array.from(selectedIds),
+                  targetParentId: selectedDestinationId,
+                });
+              }}
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white transition-colors disabled:opacity-50"
+            >
+              <MoveRight className="h-3.5 w-3.5 text-white" />
+              <span>{batchMoveMutation.isPending ? 'Memindahkan...' : 'Pindahkan ke Sini'}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: Konfirmasi Pindahkan Beberapa Item ke Kotak Sampah */}
+      <Modal
+        isOpen={isBatchDeleteOpen}
+        onClose={() => setIsBatchDeleteOpen(false)}
+        title="Pindahkan ke Kotak Sampah"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Apakah Anda yakin ingin memindahkan <strong className="text-slate-900 dark:text-white font-bold">{selectedIds.size} item terpilih</strong> ke Kotak Sampah?
+          </p>
+
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200 space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-300">
+              <Clock className="h-4 w-4" />
+              <span>Karantina 7 Hari</span>
+            </div>
+            <p>
+              Seluruh item terpilih akan disimpan di Kotak Sampah selama 7 hari sebelum dihapus permanen secara otomatis oleh sistem. Anda dapat memulihkannya kapan saja ke Drive Saya.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsBatchDeleteOpen(false)}
+              className="rounded-xl border border-[#92B4EC] px-4 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62]"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={batchDeleteMutation.isPending}
+              onClick={() => batchDeleteMutation.mutate(Array.from(selectedIds))}
+              className="flex items-center gap-1.5 rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white disabled:opacity-50 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-white" />
+              <span>{batchDeleteMutation.isPending ? 'Memindahkan...' : `Pindahkan ${selectedIds.size} Item ke Sampah`}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: Konfirmasi Hapus Permanen Beberapa Item */}
+      <Modal
+        isOpen={isBatchPermanentDeleteOpen}
+        onClose={() => setIsBatchPermanentDeleteOpen(false)}
+        title="Hapus Permanen Beberapa Item"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-red-600 dark:text-red-400">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-bold">Peringatan: Tindakan ini permanen!</p>
+              <p className="mt-0.5">
+                {selectedIds.size} berkas atau folder terpilih akan langsung dimusnahkan dari server dan tidak dapat dipulihkan kembali.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Apakah Anda yakin ingin menghapus permanen <strong className="text-slate-900 dark:text-white font-bold">{selectedIds.size} item terpilih</strong>?
+          </p>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsBatchPermanentDeleteOpen(false)}
+              className="rounded-xl border border-[#92B4EC] px-4 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62]"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={batchPermanentDeleteMutation.isPending}
+              onClick={() => batchPermanentDeleteMutation.mutate(Array.from(selectedIds))}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-white" />
+              <span>{batchPermanentDeleteMutation.isPending ? 'Menghapus...' : `Hapus Permanen (${selectedIds.size})`}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: Bagikan Beberapa Item Terpilih */}
+      <Modal
+        isOpen={isBatchShareOpen}
+        onClose={() => setIsBatchShareOpen(false)}
+        title={`Bagikan ${selectedIds.size} Item Terpilih`}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (batchShareEmail.trim() && selectedIds.size > 0) {
+              batchShareMutation.mutate({
+                itemIds: Array.from(selectedIds),
+                email: batchShareEmail.trim(),
+                role: batchShareRole,
+              });
+            }
+          }}
+          className="space-y-4"
+        >
+          <div className="rounded-xl border border-[#92B4EC]/60 bg-[#F3F6FD] p-3 dark:border-[#1E3E62] dark:bg-[#000000]">
+            <div className="flex items-center gap-2">
+              <Share2 className="h-4 w-4 text-[#FF6701] dark:text-[#FF6500]" />
+              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                Membagikan {selectedIds.size} item kepada anggota tim
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              Semua folder dan berkas yang dipilih akan langsung dapat diakses oleh anggota tim ini di tab &quot;Dibagikan dengan Saya&quot;.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              Email Anggota Tim
+            </label>
+            <input
+              type="email"
+              required
+              placeholder="nama@perusahaan.com"
+              value={batchShareEmail}
+              onChange={(e) => setBatchShareEmail(e.target.value)}
+              className="w-full rounded-xl border border-[#92B4EC] bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#FF6701] focus:outline-none dark:border-[#1E3E62] dark:bg-[#000000] dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              Tingkat Izin Akses
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['viewer', 'commenter', 'editor'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setBatchShareRole(r)}
+                  className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                    batchShareRole === r
+                      ? 'border-[#FF6701] bg-orange-50 text-[#FF6701] dark:border-[#FF6500] dark:bg-[#1E3E62] dark:text-[#FF6500]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-[#1E3E62] dark:bg-[#000000] dark:text-slate-300'
+                  }`}
+                >
+                  <span className="capitalize">{r === 'viewer' ? 'Pelihat' : r === 'commenter' ? 'Pengomentar' : 'Editor'}</span>
+                  <span className="text-[10px] font-normal text-slate-400 mt-0.5">
+                    {r === 'viewer' ? 'Lihat & Unduh' : r === 'commenter' ? '+ Komentar' : '+ Edit/Unggah'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsBatchShareOpen(false)}
+              className="rounded-xl border border-[#92B4EC] px-4 py-2 text-xs font-bold text-slate-700 hover:bg-[#92B4EC]/20 dark:border-[#1E3E62] dark:text-slate-300 dark:hover:bg-[#1E3E62]"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={!batchShareEmail.trim() || batchShareMutation.isPending}
+              className="rounded-xl bg-[#FF6701] px-4 py-2 text-xs font-bold text-white hover:bg-[#FF6500] dark:bg-[#FF6500] dark:text-white disabled:opacity-50 transition-colors"
+            >
+              {batchShareMutation.isPending ? 'Membagikan...' : `Bagikan (${selectedIds.size})`}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
 
       {/* Share Modal */}
       <ShareModal

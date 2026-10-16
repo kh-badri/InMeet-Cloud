@@ -1779,3 +1779,267 @@ func (s *DriveService) PublicUploadFile(
 	return item, nil
 }
 
+// =========================================================================
+// BATCH OPERATIONS SERVICE METHODS
+// =========================================================================
+
+func deduplicateZipPath(relPath string, usedPaths map[string]int) string {
+	clean := filepath.ToSlash(relPath)
+	if _, exists := usedPaths[clean]; !exists {
+		usedPaths[clean] = 1
+		return clean
+	}
+	usedPaths[clean]++
+	ext := filepath.Ext(clean)
+	base := strings.TrimSuffix(clean, ext)
+	count := usedPaths[clean] - 1
+	for {
+		candidate := fmt.Sprintf("%s (%d)%s", base, count, ext)
+		if _, exists := usedPaths[candidate]; !exists {
+			usedPaths[candidate] = 1
+			return candidate
+		}
+		count++
+	}
+}
+
+func (s *DriveService) BatchZipItems(ctx context.Context, caller *model.User, itemIDs []uuid.UUID, w http.ResponseWriter) error {
+	if caller == nil {
+		return ErrAccessDenied
+	}
+	if !caller.CanView {
+		return ErrPermissionViewDenied
+	}
+	if len(itemIDs) == 0 {
+		return errors.New("tidak ada berkas atau folder yang dipilih")
+	}
+
+	w.Header().Set("Content-Disposition", `attachment; filename="InMeet-Drive-Selection.zip"`)
+	w.Header().Set("Content-Type", "application/zip")
+
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
+
+	usedPaths := make(map[string]int)
+
+	for _, id := range itemIDs {
+		item, err := s.GetItem(ctx, caller, id)
+		if err != nil || item == nil {
+			continue
+		}
+
+		if item.Type == model.DriveItemTypeFile {
+			entryName := deduplicateZipPath(item.Name, usedPaths)
+			fileEntry, err := zipWriter.Create(entryName)
+			if err != nil {
+				continue
+			}
+			if item.StoragePath != "" {
+				diskFile, err := os.Open(item.StoragePath)
+				if err == nil {
+					_, _ = io.Copy(fileEntry, diskFile)
+					_ = diskFile.Close()
+				}
+			}
+		} else if item.Type == model.DriveItemTypeFolder {
+			folderRootName := deduplicateZipPath(item.Name, usedPaths)
+			_, _ = zipWriter.Create(folderRootName + "/")
+
+			descendants, err := s.repo.FindDescendants(ctx, item.ID)
+			if err != nil {
+				continue
+			}
+
+			itemMap := make(map[uuid.UUID]*model.DriveItem)
+			for _, d := range descendants {
+				itemMap[d.ID] = d
+			}
+
+			getPath := func(curr *model.DriveItem) string {
+				var pathParts []string
+				c := curr
+				for c != nil && c.ID != item.ID {
+					pathParts = append([]string{c.Name}, pathParts...)
+					if c.ParentID == nil {
+						break
+					}
+					c = itemMap[*c.ParentID]
+				}
+				return filepath.Join(pathParts...)
+			}
+
+			for _, d := range descendants {
+				if d.ID == item.ID {
+					continue
+				}
+				relSubPath := getPath(d)
+				if relSubPath == "" {
+					continue
+				}
+				fullZipPath := filepath.ToSlash(filepath.Join(folderRootName, relSubPath))
+				if d.Type == model.DriveItemTypeFolder {
+					_, _ = zipWriter.Create(fullZipPath + "/")
+				} else {
+					fileEntry, err := zipWriter.Create(fullZipPath)
+					if err != nil {
+						continue
+					}
+					if d.StoragePath != "" {
+						diskFile, err := os.Open(d.StoragePath)
+						if err == nil {
+							_, _ = io.Copy(fileEntry, diskFile)
+							_ = diskFile.Close()
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *DriveService) BatchMoveItems(ctx context.Context, caller *model.User, itemIDs []uuid.UUID, targetParentID *uuid.UUID) (*model.BatchOperationResult, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
+	}
+	if len(itemIDs) == 0 {
+		return nil, errors.New("tidak ada item yang dipilih")
+	}
+
+	if targetParentID != nil {
+		var target *model.DriveItem
+		var err error
+		if caller.Role == model.RoleUser {
+			target, err = s.repo.GetByID(ctx, *targetParentID, caller.ID)
+		} else {
+			target, err = s.repo.GetByIDAny(ctx, *targetParentID)
+		}
+		if err != nil {
+			return nil, ErrInvalidDestination
+		}
+		if target.Type != model.DriveItemTypeFolder {
+			return nil, errors.New("target tujuan harus berupa folder")
+		}
+
+		for _, id := range itemIDs {
+			if id == *targetParentID {
+				return nil, errors.New("tidak dapat memindahkan folder ke dalam dirinya sendiri")
+			}
+		}
+	}
+
+	res := &model.BatchOperationResult{}
+	for _, id := range itemIDs {
+		err := s.MoveItem(ctx, caller, id, targetParentID)
+		if err != nil {
+			res.FailCount++
+			res.Errors = append(res.Errors, err.Error())
+		} else {
+			res.SuccessCount++
+		}
+	}
+
+	return res, nil
+}
+
+func (s *DriveService) BatchDeleteItems(ctx context.Context, caller *model.User, itemIDs []uuid.UUID) (*model.BatchOperationResult, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanDelete {
+		return nil, ErrPermissionDeleteDenied
+	}
+	if len(itemIDs) == 0 {
+		return nil, errors.New("tidak ada item yang dipilih")
+	}
+
+	res := &model.BatchOperationResult{}
+	for _, id := range itemIDs {
+		err := s.DeleteItem(ctx, caller, id)
+		if err != nil {
+			res.FailCount++
+			res.Errors = append(res.Errors, err.Error())
+		} else {
+			res.SuccessCount++
+		}
+	}
+	return res, nil
+}
+
+func (s *DriveService) BatchTrashRestore(ctx context.Context, caller *model.User, itemIDs []uuid.UUID) (*model.BatchOperationResult, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanDelete && !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
+	}
+	if len(itemIDs) == 0 {
+		return nil, errors.New("tidak ada item yang dipilih")
+	}
+
+	res := &model.BatchOperationResult{}
+	for _, id := range itemIDs {
+		err := s.RestoreItem(ctx, caller, id)
+		if err != nil {
+			res.FailCount++
+			res.Errors = append(res.Errors, err.Error())
+		} else {
+			res.SuccessCount++
+		}
+	}
+	return res, nil
+}
+
+func (s *DriveService) BatchTrashPermanentDelete(ctx context.Context, caller *model.User, itemIDs []uuid.UUID) (*model.BatchOperationResult, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanDelete {
+		return nil, ErrPermissionDeleteDenied
+	}
+	if len(itemIDs) == 0 {
+		return nil, errors.New("tidak ada item yang dipilih")
+	}
+
+	res := &model.BatchOperationResult{}
+	for _, id := range itemIDs {
+		err := s.PermanentDeleteItem(ctx, caller, id)
+		if err != nil {
+			res.FailCount++
+			res.Errors = append(res.Errors, err.Error())
+		} else {
+			res.SuccessCount++
+		}
+	}
+	return res, nil
+}
+
+func (s *DriveService) BatchShareUsers(ctx context.Context, caller *model.User, itemIDs []uuid.UUID, email string, role model.ShareRole) (*model.BatchOperationResult, error) {
+	if caller == nil {
+		return nil, ErrAccessDenied
+	}
+	if !caller.CanEdit {
+		return nil, ErrPermissionEditDenied
+	}
+	if len(itemIDs) == 0 {
+		return nil, errors.New("tidak ada item yang dipilih")
+	}
+
+	res := &model.BatchOperationResult{}
+	for _, id := range itemIDs {
+		_, err := s.UpdateUserShare(ctx, caller, id, email, role)
+		if err != nil {
+			res.FailCount++
+			res.Errors = append(res.Errors, err.Error())
+		} else {
+			res.SuccessCount++
+		}
+	}
+	return res, nil
+}
+
+

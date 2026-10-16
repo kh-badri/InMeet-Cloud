@@ -398,4 +398,26 @@ type PublicSharedItemResponse struct {
 	TotalBytes    int64             `json:"total_bytes,omitempty"`
 }
 
+type BatchOperationRequest struct {
+	ItemIDs []uuid.UUID `json:"item_ids"`
+}
+
+type BatchMoveRequest struct {
+	ItemIDs        []uuid.UUID `json:"item_ids"`
+	TargetParentID *uuid.UUID  `json:"target_parent_id"`
+}
+
+type BatchShareUsersRequest struct {
+	ItemIDs []uuid.UUID `json:"item_ids"`
+	Email   string      `json:"email"`
+	Role    ShareRole   `json:"role"`
+}
+
+type BatchOperationResult struct {
+	SuccessCount int      `json:"success_count"`
+	FailCount    int      `json:"fail_count"`
+	Errors       []string `json:"errors,omitempty"`
+}
+
+
 
