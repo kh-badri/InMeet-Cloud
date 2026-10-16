@@ -142,24 +142,51 @@ func (r *AppRepository) Update(ctx context.Context, app *model.Application) erro
 	return nil
 }
 
-func (r *AppRepository) CountBackups(ctx context.Context, id uuid.UUID) (int, error) {
+func (r *AppRepository) CountActiveBackups(ctx context.Context, id uuid.UUID) (int, error) {
 	var count int
-	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM backups WHERE application_id = $1`, id).Scan(&count)
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM backups WHERE application_id = $1 AND status = 'verified'`, id).Scan(&count)
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func (r *AppRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	res, err := r.pool.Exec(ctx, `DELETE FROM applications WHERE id = $1`, id)
+func (r *AppRepository) GetBackupStoragePaths(ctx context.Context, appID uuid.UUID) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `SELECT storage_path FROM backups WHERE application_id = $1`, appID)
 	if err != nil {
-		return fmt.Errorf("gagal menghapus aplikasi (kemungkinan masih memiliki backup terkait): %w", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err == nil && p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths, nil
+}
+
+func (r *AppRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// Clean up any remaining backup records (deleted / quarantined tombstones)
+	_, _ = tx.Exec(ctx, `DELETE FROM backups WHERE application_id = $1`, id)
+
+	res, err := tx.Exec(ctx, `DELETE FROM applications WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("gagal menghapus aplikasi: %w", err)
 	}
 	if res.RowsAffected() == 0 {
 		return ErrAppNotFound
 	}
-	return nil
+
+	return tx.Commit(ctx)
 }
 
 func stringsContains(s, substr string) bool {

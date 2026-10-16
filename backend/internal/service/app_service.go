@@ -124,12 +124,12 @@ func (s *AppService) DeleteApp(ctx context.Context, id uuid.UUID, actorID, actor
 		return err
 	}
 
-	count, err := s.appRepo.CountBackups(ctx, id)
+	activeCount, err := s.appRepo.CountActiveBackups(ctx, id)
 	if err != nil {
 		return err
 	}
-	if count > 0 {
-		return fmt.Errorf("aplikasi '%s' tidak dapat dihapus karena masih memiliki %d file backup. Hapus file backup terlebih dahulu", app.DisplayName, count)
+	if activeCount > 0 {
+		return fmt.Errorf("aplikasi '%s' tidak dapat dihapus karena masih memiliki %d file backup aktif. Hapus file backup terlebih dahulu", app.DisplayName, activeCount)
 	}
 
 	if err := s.appRepo.Delete(ctx, id); err != nil {
